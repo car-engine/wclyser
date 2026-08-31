@@ -30,6 +30,7 @@ wcly players <report_code>                     # roster, specs played, resolved 
 wcly streams                                   # the fetch plan
 wcly fetch <report_code> --player <name>       # fetch and cache raw events
 wcly import <report_code>                      # cached blobs into SQLite
+wcly sync <report_code>                        # fetch then import, in one step
 wcly coverage <report_code> --stream casts     # what an analysis needs vs what is in
 wcly prune <report_code>                       # drop streams the import list dropped
 wcly stats <report_code>                       # row counts and imported pulls
@@ -127,6 +128,12 @@ event table cost space in a file meant to grow across a whole tier, so
 `import.streams` in `config.yaml` decides what actually lands. The same eleven
 pulls import to 47.5 MB with all thirteen streams and 1.55 MB with `casts` and
 `resources` alone.
+
+`analyse` imports a blob that is cached but not yet in the database, because
+that costs nothing and is idempotent. It never fetches, so no command that
+analyses can spend API points however it is called. A gap with no blob raises
+with the command to run, and `wcly sync` is the explicit one-liner for fetch
+then import. `--no-import` restores the strict behaviour.
 
 An analysis that needs a stream which was not imported does not answer over
 missing rows. It declares what it reads, and `wcly coverage` — or

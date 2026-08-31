@@ -30,6 +30,26 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, sync and free auto-import
+
+`analyse` now closes a coverage gap itself when every missing blob is already
+cached, which costs nothing and is idempotent. `db.coverage.ensure` does the
+work: it checks, imports what is free, and re-checks. A gap needing a fetch
+still raises with the command, so analysis cannot reach the network however it
+is called. `--no-import` restores the strict behaviour.
+
+Auto-fetching was considered and rejected. `analyse` is the command run
+repeatedly while iterating on a profile, a widened focus would turn it into 322
+points and two minutes of network, and the fetch layer being the only thing
+that touches the network is what keeps the offline checks credential-free.
+
+`wcly sync` is the explicit one-liner instead: fetch wide, then import narrow,
+with the point budget printed either side.
+
+Also corrected: `fights`, `fetch`, `import` and `sync` printed the focus from
+configuration rather than the focus actually in effect, so a run overridden with
+`--difficulty Mythic` reported the configured Heroic.
+
 ## 2026-09-01, page output folded into analyse
 
 `wcly analyse --module havoc --html` prints the result, writes the metrics and

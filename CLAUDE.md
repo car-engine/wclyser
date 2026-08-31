@@ -12,6 +12,7 @@ wcly fights <report_code>            # pulls, with the focus marked
 wcly players <report_code>           # roster and resolved subjects
 wcly fetch <report_code>             # fetch and cache, narrowed by the focus
 wcly import <report_code>            # cached blobs into SQLite, no credentials
+wcly sync <report_code>              # fetch then import, in one step
 wcly coverage <report_code>          # what is needed against what is imported
 wcly analyse <report_code> --module X   # run a module, store its metrics
 wcly analyse <report_code> --module X --html   # and write an HTML page
@@ -56,6 +57,11 @@ what it reads and `db.coverage.require` reports the gap.
 **A report page is self-contained.** It carries its own CSS, script and data,
 because it is sent to someone who has none of this installed. Google Fonts is
 the only permitted external request. Never add a CDN script or a remote image.
+
+**Analysis never reaches the network.** `analyse` imports a blob that is cached
+but not yet in the database, because that is free. It never fetches. A gap with
+no blob raises with the command to run, so no analysis command can spend API
+points however it is called.
 
 ## Invariants
 
