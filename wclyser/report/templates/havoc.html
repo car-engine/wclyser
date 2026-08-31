@@ -1,0 +1,592 @@
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+:root {
+  --surface: #FAF8F5;
+  --panel: #FFFDFA;
+  --row: #F3EFE9;
+  --window: #EAE4DA;
+  --ink: #221F1B;
+  --ink-2: #55504A;
+  --ink-3: #756C63;
+  --rule: #E4DED6;
+  --good: #0C7C5E;
+  --bad: #C4442A;
+  --other: #7C736A;
+  --shadow: 0 1px 2px rgba(34, 31, 27, .06), 0 8px 24px rgba(34, 31, 27, .05);
+}
+:root:not([data-theme="light"]) { color-scheme: light dark; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1A1815;
+    --panel: #221F1B;
+    --row: #2A2622;
+    --window: #35302A;
+    --ink: #F0EBE4;
+    --ink-2: #B5ADA3;
+    --ink-3: #9A9188;
+    --rule: #34302B;
+    --good: #26A08D;
+    --bad: #DF6444;
+    --other: #8B8279;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #1A1815;
+  --panel: #221F1B;
+  --row: #2A2622;
+  --window: #35302A;
+  --ink: #F0EBE4;
+  --ink-2: #B5ADA3;
+  --ink-3: #9A9188;
+  --rule: #34302B;
+  --good: #26A08D;
+  --bad: #DF6444;
+  --other: #8B8279;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 56px 28px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+
+/* ---- header ---- */
+.masthead { display: flex; flex-direction: column; gap: 14px; }
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11.5px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex; flex-wrap: wrap; gap: 8px 14px;
+}
+h1 {
+  font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+  font-weight: 700; font-size: clamp(38px, 6vw, 62px);
+  letter-spacing: -.02em; line-height: .98; margin: 0; text-wrap: balance;
+}
+h1 .spec { color: var(--ink); opacity: .78; }
+.standfirst { max-width: 62ch; color: var(--ink-2); font-size: 16.5px; margin: 0; }
+
+/* ---- stat tiles ---- */
+.tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+  gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+  border-radius: 3px; overflow: hidden;
+}
+.tile { background: var(--panel); padding: 18px 20px; display: flex; flex-direction: column; gap: 4px; }
+.tile dt {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+}
+.tile dd {
+  margin: 0; font-family: "IBM Plex Sans Condensed", sans-serif;
+  font-weight: 700; font-size: 30px; line-height: 1.05; font-variant-numeric: tabular-nums;
+}
+.tile dd small { font-size: 15px; font-weight: 600; color: var(--ink-3); }
+.tile .note { font-size: 12.5px; color: var(--ink-3); line-height: 1.35; }
+
+/* ---- sections ---- */
+.sec { display: flex; flex-direction: column; gap: 16px; }
+h2 {
+  font-family: "IBM Plex Sans Condensed", sans-serif;
+  font-weight: 700; font-size: 25px; letter-spacing: -.01em; margin: 0;
+}
+.sec > p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+.sec > p.fine { font-size: 13.5px; color: var(--ink-3); }
+
+/* ---- raster ---- */
+.raster {
+  border: 1px solid var(--rule); border-radius: 3px;
+  background: var(--panel); box-shadow: var(--shadow); overflow-x: auto;
+}
+.grid { min-width: 780px; }
+
+.axis {
+  display: grid; grid-template-columns: var(--gutter) 1fr var(--tail);
+  align-items: end; border-bottom: 1px solid var(--rule);
+  padding: 12px 16px 0; position: sticky; top: 0; z-index: 3; background: var(--panel);
+}
+.axis-track { position: relative; height: 30px; }
+.axis-tick {
+  position: absolute; bottom: 0; transform: translateX(-50%);
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+  color: var(--ink-3); padding-bottom: 5px;
+}
+.axis-tick::after {
+  content: ""; position: absolute; left: 50%; bottom: 0;
+  width: 1px; height: 5px; background: var(--rule);
+}
+.axis-label {
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding-bottom: 6px;
+}
+.axis-label.right { text-align: right; }
+
+.pullhead {
+  display: grid; grid-template-columns: var(--gutter) 1fr var(--tail);
+  padding: 14px 16px 5px; align-items: baseline;
+}
+.pullhead .name {
+  font-family: "IBM Plex Sans Condensed", sans-serif;
+  font-weight: 600; font-size: 14px; letter-spacing: .01em;
+}
+.pullhead .meta {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px;
+  color: var(--ink-3); display: flex; gap: 12px;
+}
+.pullhead .outcome { text-transform: uppercase; letter-spacing: .08em; }
+
+.row {
+  display: grid; grid-template-columns: var(--gutter) 1fr var(--tail);
+  align-items: center; padding: 1px 16px;
+}
+.row:hover { background: var(--row); }
+
+.rowid {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px;
+  color: var(--ink-3); display: flex; align-items: center; gap: 9px;
+}
+
+/* Links out to the same range in Warcraft Logs. */
+a.log {
+  color: var(--ink-2); font-weight: 500; text-decoration: none;
+  border-bottom: 1px dotted var(--ink-3); padding-bottom: 1px;
+}
+a.log:hover { color: var(--ink); border-bottom-style: solid; border-bottom-color: var(--ink); }
+a.log:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 1px; }
+.pullhead a.log { font-family: inherit; font-weight: 600; }
+
+.pips { display: inline-flex; gap: 1.5px; align-items: center; }
+.pip { width: 4px; height: 11px; border-radius: 1px; background: var(--ink); opacity: .82; }
+.pip.part { opacity: .34; }
+.pip.off { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-3); opacity: .5; }
+.shardnum { font-variant-numeric: tabular-nums; min-width: 20px; }
+
+.track {
+  position: relative; height: 18px;
+  border-left: 1px solid var(--rule); border-right: 1px solid var(--rule);
+}
+.track .win { position: absolute; top: 0; bottom: 0; background: var(--window); border-radius: 1px; }
+.track .zero { position: absolute; top: -1px; bottom: -1px; width: 1px; background: var(--ink-3); opacity: .55; }
+
+.m { position: absolute; top: 50%; transform: translate(-50%, -50%); border-radius: 1px; cursor: default; }
+.m.good  { width: 3px; height: 10px; background: var(--good); }
+.m.bad   { width: 5px; height: 17px; background: var(--bad); box-shadow: 0 0 0 1.5px var(--panel); }
+.m.other { width: 2px; height: 6px;  background: var(--other); }
+.m.lead     { opacity: .55; }
+.m.lead.bad { opacity: 1; background: transparent; box-shadow: inset 0 0 0 1.6px var(--bad), 0 0 0 1.5px var(--panel); }
+.row:hover .m.bad { box-shadow: 0 0 0 1.5px var(--row); }
+.row:hover .m.lead.bad { box-shadow: inset 0 0 0 1.6px var(--bad), 0 0 0 1.5px var(--row); }
+
+.counts {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; text-align: right;
+  color: var(--ink-3); font-variant-numeric: tabular-nums;
+  display: flex; gap: 7px; justify-content: flex-end;
+}
+.counts .b { color: var(--bad); font-weight: 600; }
+.counts .b.zero { color: var(--ink-3); font-weight: 400; }
+
+/* ---- legend ---- */
+.legend {
+  display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 14px 16px;
+  border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-2); background: var(--panel);
+}
+.key { display: inline-flex; align-items: center; gap: 8px; }
+.swatch { position: relative; width: 14px; height: 18px; flex: none; }
+.swatch i { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 1px; }
+
+/* ---- ranking lists ---- */
+.lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 26px; }
+.ranked { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.ranked li {
+  display: flex; align-items: baseline; gap: 9px;
+  font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+  padding: 3px 0; border-bottom: 1px dotted var(--rule);
+}
+.ranked .n { color: var(--ink-3); min-width: 14px; font-size: 11px; }
+.ranked .sp { flex: 1; font-family: "IBM Plex Sans", sans-serif; font-size: 13.5px; }
+.ranked .ct { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.lists h3 {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; margin: 0 0 10px; color: var(--ink-3);
+}
+.lists .good-h { color: var(--good); }
+.lists .bad-h { color: var(--bad); }
+
+/* ---- table view ---- */
+.toggle {
+  font-family: "IBM Plex Mono", monospace; font-size: 12px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 3px;
+  padding: 8px 14px; cursor: pointer; align-self: flex-start; letter-spacing: .04em;
+}
+.toggle:hover { background: var(--row); }
+.toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; min-width: 680px; }
+th, td {
+  text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--rule);
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+th {
+  font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--ink-3); background: var(--panel); position: sticky; top: 0;
+}
+td.seq { white-space: normal; font-family: "IBM Plex Sans", sans-serif; min-width: 300px; }
+td .bd { color: var(--bad); font-weight: 600; }
+tbody tr:hover { background: var(--row); }
+[hidden] { display: none !important; }
+
+/* ---- tooltip ---- */
+#tip {
+  position: fixed; z-index: 50; pointer-events: none;
+  background: var(--ink); color: var(--surface);
+  padding: 7px 10px; border-radius: 3px; font-size: 12px;
+  font-family: "IBM Plex Mono", monospace; line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .3); opacity: 0; transition: opacity .1s ease;
+}
+#tip.on { opacity: 1; }
+#tip .t-sp { font-family: "IBM Plex Sans", sans-serif; font-weight: 600; font-size: 13px; }
+
+footer {
+  border-top: 1px solid var(--rule); padding-top: 18px;
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+  display: flex; flex-wrap: wrap; gap: 6px 18px;
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+@media (max-width: 620px) { .page { padding: 36px 16px 64px; gap: 34px; } }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="eyebrow" id="eyebrow"></div>
+    <h1>Havoc windows<br><span class="spec" id="who"></span></h1>
+    <p class="standfirst" id="standfirst"></p>
+  </header>
+
+  <dl class="tiles" id="tiles"></dl>
+
+  <section class="sec">
+    <h2>Havoc window summary</h2>
+    <p>Each row is one Havoc window. Shading covers the 20&nbsp;seconds of the
+      window. The 5&nbsp;seconds before it are the lead-in. A mark is one cast, at the
+      time it completed.</p>
+    <p class="fine">Window numbers link to the lead-in and window in Warcraft Logs,
+      filtered to this player's casts. Pull numbers link to the whole pull.</p>
+
+    <div class="raster">
+      <div class="grid" id="grid"></div>
+      <div class="legend">
+        <span class="key"><span class="swatch"><i style="width:3px;height:10px;background:var(--good)"></i></span>Good spell</span>
+        <span class="key"><span class="swatch"><i style="width:5px;height:17px;background:var(--bad)"></i></span>Bad spell, inside the window</span>
+        <span class="key"><span class="swatch"><i style="width:5px;height:17px;box-shadow:inset 0 0 0 1.6px var(--bad)"></i></span>Bad spell, cleared in the lead-in</span>
+        <span class="key"><span class="swatch"><i style="width:2px;height:6px;background:var(--other)"></i></span>Everything else</span>
+        <span class="key"><span class="swatch"><i style="width:4px;height:11px;background:var(--ink);opacity:.82"></i></span>Soul shards on entry</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>Spell priority</h2>
+    <p class="fine">Resource state and competing cooldowns decide the best cast at
+      any moment. This list is an approximate priority order.</p>
+    <div class="lists">
+      <div>
+        <h3 class="good-h">Good, best first</h3>
+        <ol class="ranked" id="goodlist"></ol>
+      </div>
+      <div>
+        <h3 class="bad-h">Bad, worst first</h3>
+        <ol class="ranked" id="badlist"></ol>
+      </div>
+      <div>
+        <h3>Cast inside windows</h3>
+        <ol class="ranked" id="freqlist"></ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>Windows as a table</h2>
+    <button class="toggle" id="tbtn" aria-expanded="false" aria-controls="tablewrap">Show table</button>
+    <div class="tablewrap" id="tablewrap" hidden>
+      <table>
+        <thead>
+          <tr><th>Pull</th><th>Window</th><th>Opens</th><th>Length</th><th>Shards</th>
+            <th>Good</th><th>Bad</th><th>Other</th><th>Cleared first</th><th class="seq">Sequence</th></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script id="havoc-data" type="application/json">/*__DATA__*/</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("havoc-data").textContent);
+  const LEAD = D.lead_in_s, WIN = D.window_s, SPAN = LEAD + WIN;
+  const pct = (t) => ((t + LEAD) / SPAN) * 100;
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  };
+
+  // Warcraft Logs takes report-relative milliseconds, the same base the fight
+  // and event timestamps use. A window link covers the lead-in and the window.
+  const logLink = (label, fightId, startMs, endMs, title) => {
+    const a = el("a", "log", label);
+    a.href = `https://www.warcraftlogs.com/reports/${D.report}`
+      + `?fight=${fightId}&type=casts&source=${D.source_id}`
+      + `&start=${Math.round(startMs)}&end=${Math.round(endMs)}`;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    if (title) a.title = title;
+    return a;
+  };
+
+  document.documentElement.style.setProperty("--gutter", "150px");
+  document.documentElement.style.setProperty("--tail", "92px");
+
+  const W = D.windows;
+  const casts = W.flatMap((w) => w.casts);
+  const inside = casts.filter((c) => !c.lead);
+  const n = (c) => inside.filter((x) => x.c === c).length;
+  const badWindows = W.filter((w) => w.casts.some((c) => !c.lead && c.c === "bad")).length;
+  const clearedWindows = W.filter((w) => w.casts.some((c) => c.lead && c.c === "bad")).length;
+  const entries = W.map((w) => w.entry).filter((v) => v !== null);
+  const meanEntry = entries.reduce((a, b) => a + b, 0) / entries.length;
+
+  document.getElementById("eyebrow").append(
+    el("span", null, D.report), el("span", null, D.night),
+    el("span", null, D.zone), el("span", null, D.difficulty + " " + D.encounter)
+  );
+  document.getElementById("who").textContent =
+    D.player.split("-")[0] + " · " + D.spec + " " + D.player_class;
+  document.getElementById("standfirst").textContent =
+    `${W.length} windows across ${D.pulls.length} pulls, ${inside.length} casts total.`;
+
+  const tiles = [
+    ["Windows", W.length, "", `${D.pulls.length} pulls, all ${D.difficulty}`],
+    ["Casts per window", (inside.length / W.length).toFixed(1), "",
+      `${n("good")} good · ${n("bad")} bad · ${n("other")} other`],
+    ["Shards on entry", meanEntry.toFixed(1), " of 5", "mean, extrapolated to the opening"],
+    ["Windows with a bad cast", badWindows, ` of ${W.length}`,
+      `${clearedWindows} cleared a bad spell in the lead-in`],
+  ];
+  const tl = document.getElementById("tiles");
+  for (const [k, v, unit, note] of tiles) {
+    const wrap = el("div", "tile");
+    wrap.append(el("dt", null, k));
+    const dd = el("dd", null, String(v));
+    if (unit) dd.append(el("small", null, unit));
+    wrap.append(dd, el("div", "note", note));
+    tl.append(wrap);
+  }
+
+  /* ---- axis ---- */
+  const grid = document.getElementById("grid");
+  const axis = el("div", "axis");
+  axis.append(el("div", "axis-label", "pull · window · shards"));
+  const at = el("div", "axis-track");
+  for (let t = -LEAD; t <= WIN; t += 5) {
+    const tick = el("div", "axis-tick", (t === 0 ? "0" : (t > 0 ? "+" + t : String(t))) + "s");
+    tick.style.left = pct(t) + "%";
+    at.append(tick);
+  }
+  axis.append(at, el("div", "axis-label right", "g / b / o"));
+  grid.append(axis);
+
+  /* ---- rows ---- */
+  const byPull = new Map();
+  for (const w of W) {
+    if (!byPull.has(w.pull)) byPull.set(w.pull, []);
+    byPull.get(w.pull).push(w);
+  }
+  const pullMeta = new Map(D.pulls.map((p) => [p.pull, p]));
+
+  for (const [pull, rows] of byPull) {
+    const meta = pullMeta.get(pull) || {};
+    const head = el("div", "pullhead");
+    const nameCell = el("div", "name");
+    nameCell.append(logLink("Pull " + pull, meta.fight_id, meta.fight_start_ms,
+      meta.fight_end_ms, "Whole pull in Warcraft Logs"));
+    head.append(nameCell);
+    const m = el("div", "meta");
+    m.append(
+      el("span", "outcome", meta.outcome || ""),
+      el("span", null, (meta.duration_s || 0).toFixed(0) + "s"),
+      el("span", null, rows.length + (rows.length === 1 ? " window" : " windows")),
+      el("span", null, meta.end_percent != null ? meta.end_percent.toFixed(1) + "% left" : "")
+    );
+    head.append(m, el("div"));
+    grid.append(head);
+
+    for (const w of rows) {
+      const row = el("div", "row");
+
+      const id = el("div", "rowid");
+      id.append(logLink("w" + w.idx, w.fight_id, w.abs_lead_ms, w.abs_end_ms,
+        `Pull ${w.pull}, lead-in and window, in Warcraft Logs`));
+      const pips = el("span", "pips");
+      const cap = w.cap || 5;
+      for (let i = 0; i < cap; i++) {
+        const full = w.entry !== null && w.entry >= i + 1;
+        const part = w.entry !== null && !full && w.entry > i;
+        pips.append(el("i", "pip" + (full ? "" : part ? " part" : " off")));
+      }
+      id.append(pips, el("span", "shardnum", w.entry === null ? "–" : w.entry.toFixed(1)));
+      row.append(id);
+
+      const track = el("div", "track");
+      const win = el("div", "win");
+      win.style.left = pct(0) + "%";
+      win.style.width = (w.len_s / SPAN) * 100 + "%";
+      track.append(win);
+      const zero = el("div", "zero");
+      zero.style.left = pct(0) + "%";
+      track.append(zero);
+
+      for (const c of w.casts) {
+        const mark = el("i", "m " + c.c + (c.lead ? " lead" : ""));
+        mark.style.left = pct(c.t) + "%";
+        mark.dataset.sp = c.n;
+        mark.dataset.t = c.t;
+        mark.dataset.k = c.lead
+          ? (c.c === "bad" ? "cleared before the window" : "lead-in")
+          : (c.c === "good" ? "good " + c.r : c.c === "bad" ? "BAD " + c.r : "other");
+        track.append(mark);
+      }
+      row.append(track);
+
+      const cin = w.casts.filter((c) => !c.lead);
+      const g = cin.filter((c) => c.c === "good").length;
+      const b = cin.filter((c) => c.c === "bad").length;
+      const o = cin.filter((c) => c.c === "other").length;
+      const counts = el("div", "counts");
+      counts.append(el("span", null, g), el("span", "b" + (b ? "" : " zero"), b), el("span", null, o));
+      row.append(counts);
+      grid.append(row);
+    }
+  }
+
+  /* ---- ranking lists ---- */
+  const fill = (id, names) => {
+    const ol = document.getElementById(id);
+    names.forEach((nm, i) => {
+      const li = el("li");
+      li.append(el("span", "n", String(i + 1)), el("span", "sp", nm));
+      const count = inside.filter((c) => c.n === nm).length;
+      li.append(el("span", "ct", count ? count + "×" : "–"));
+      ol.append(li);
+    });
+  };
+  fill("goodlist", D.good);
+  fill("badlist", D.bad);
+
+  const freq = new Map();
+  for (const c of inside) freq.set(c.n, (freq.get(c.n) || 0) + 1);
+  const fl = document.getElementById("freqlist");
+  [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 9).forEach(([nm, ct], i) => {
+    const li = el("li");
+    li.append(el("span", "n", String(i + 1)), el("span", "sp", nm), el("span", "ct", ct + "×"));
+    fl.append(li);
+  });
+
+  /* ---- table ---- */
+  const tb = document.getElementById("tbody");
+  for (const w of W) {
+    const cin = w.casts.filter((c) => !c.lead).sort((a, b) => a.t - b.t);
+    const lead = w.casts.filter((c) => c.lead && c.c === "bad").map((c) => c.n);
+    const tr = el("tr");
+    tr.append(el("td", null, String(w.pull)));
+    const wcell = el("td");
+    wcell.append(logLink("w" + w.idx, w.fight_id, w.abs_lead_ms, w.abs_end_ms,
+      "Lead-in and window in Warcraft Logs"));
+    tr.append(wcell);
+    for (const v of [
+      w.start_s.toFixed(1) + "s", w.len_s.toFixed(1) + "s",
+      w.entry === null ? "–" : w.entry.toFixed(1),
+      String(cin.filter((c) => c.c === "good").length),
+      String(cin.filter((c) => c.c === "bad").length),
+      String(cin.filter((c) => c.c === "other").length),
+      lead.length ? lead.join(", ") : "–",
+    ]) tr.append(el("td", null, v));
+    const seq = el("td", "seq");
+    cin.forEach((c, i) => {
+      if (i) seq.append(document.createTextNode(" › "));
+      seq.append(c.c === "bad" ? el("span", "bd", c.n) : document.createTextNode(c.n));
+    });
+    tr.append(seq);
+    tb.append(tr);
+  }
+  const btn = document.getElementById("tbtn"), wrapEl = document.getElementById("tablewrap");
+  btn.addEventListener("click", () => {
+    const open = wrapEl.hidden;
+    wrapEl.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    btn.textContent = open ? "Hide table" : "Show table";
+  });
+
+  /* ---- tooltip ---- */
+  const tip = document.getElementById("tip");
+  grid.addEventListener("mouseover", (e) => {
+    const m = e.target.closest(".m");
+    if (!m) return;
+    tip.innerHTML = "";
+    tip.append(el("div", "t-sp", m.dataset.sp));
+    const t = Number(m.dataset.t);
+    tip.append(el("div", null, (t >= 0 ? "+" : "") + t.toFixed(2) + "s · " + m.dataset.k));
+    tip.classList.add("on");
+  });
+  grid.addEventListener("mousemove", (e) => {
+    if (!tip.classList.contains("on")) return;
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const r = tip.getBoundingClientRect();
+    if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - pad;
+    if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - pad;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+  });
+  grid.addEventListener("mouseout", (e) => {
+    if (e.target.closest(".m")) tip.classList.remove("on");
+  });
+
+  document.getElementById("footer").append(
+    el("span", null, "Report " + D.report),
+    el("span", null, "Window " + WIN + "s, lead-in " + LEAD + "s"),
+    el("span", null, "Shard entry extrapolated; critical strikes ignored, "
+      + "passive tick assumed running"),
+    el("span", null, "{{FOOTER_NOTE}}")
+  );
+})();
+</script>

@@ -20,4 +20,4 @@ wcly = "wclyser.cli:main"
 include = ["wclyser*"]
 
 [tool.setuptools.package-data]
-wclyser = ["db/migrations/*.sql", "profiles/*.yaml"]
+wclyser = ["db/migrations/*.sql", "profiles/*.yaml", "report/templates/*.html"]
