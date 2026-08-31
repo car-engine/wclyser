@@ -30,6 +30,35 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, later
+
+Two additions to the Havoc module.
+
+The lead-in: the five seconds before a window opens, from `lead_in_s` in the
+profile. A spell from the bad list cast there was cleared out of the way rather
+than spending a duplicated global cooldown, which the output flags as
+`cleared first`. The lead-in is clamped so it never reaches back into the
+previous window.
+
+The shard level on entry. This needed a detour. Havoc costs no shards, so its
+own cast event reports the mana pool, and across all three reports every one of
+the 1,838 shard `resourcechange` events carries a change of zero. No stream
+reports a continuous shard track.
+
+The first attempt bracketed the level between the spend either side of the
+opening, which is rigorous but useless: the median bracket ran three shards
+wide out of five, and none was exact. What the output reports instead is the
+level at the first shard-spending cast inside the window, read a mean 2.9
+seconds in, which is a directly observed figure and an upper bound on the level
+at entry. The lower bound is kept as `shards_floor_mean` in the metrics.
+
+Over the eleven Mythic pulls: mean 4.7 of 5, median 5.0, and 39 of 54 windows
+read at the shard cap.
+
+The lead-in comparison separates habit from cadence. Malevolence was cleared
+first before 24 windows and spoiled 5; Summon Infernal 17 against 3. Wither is
+the other way round, 13 against 48.
+
 ## 2026-09-01
 
 First analysis module: `havoc`, listing what was cast inside each Havoc window

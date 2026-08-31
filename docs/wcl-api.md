@@ -108,6 +108,11 @@ Generation has to be inferred from the level between consecutive spends. The
 level reaching its cap of 5.0 is directly visible, which is the wasted
 generation signal.
 
+Checked across three reports: every one of the 1,838 shard `resourcechange`
+events carries `resourceChange: 0`, and no other stream reports a shard pool.
+A cast that spends shards is the only place the level ever appears. A spell
+that costs no shards, Havoc included, reports the mana pool instead.
+
 `includeResources: true` on the events query is what attaches `classResources`
 at all. Without it none of this is present.
 
