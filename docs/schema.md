@@ -40,9 +40,10 @@ join.
 ### Pets resolve to their owner
 
 `source_key` on a pet's event holds the **owner's** player key, so pet damage
-aggregates with the player's own. For Destruction that is the Infernal and the
-felguard, about 7% of the damage in the sample night. `source_id` still holds
-the pet's own actor id, and `source_is_pet` marks the row.
+aggregates with the player's own. Across the eleven sample pulls that is
+26,961,200 of 383,007,132 damage, or 7.0%, from the Infernal, the Overfiend
+and the permanent pet. `source_id` still holds the pet's own actor id, and
+`source_is_pet` marks the row.
 
 ### Specialisation lives on the pull
 

@@ -4,7 +4,7 @@ Personal Warcraft Logs raid performance analysis. Fetches raw event data for
 chosen players, accumulates it across raid nights, and reports on how the play
 changed.
 
-Built so far: the client and fetch layers. The normalise, analysis and report
+Built so far: the client, fetch and normalise layers. The analysis and report
 layers are described below but not written.
 
 ## Setup
@@ -29,9 +29,11 @@ wcla fights <report_code>                      # pulls, with kill/wipe and pull 
 wcla players <report_code>                     # roster, specs played, resolved subjects
 wcla streams                                   # the fetch plan
 wcla fetch <report_code> --player <name>       # fetch and cache raw events
+wcla import <report_code>                      # cached blobs into SQLite
+wcla stats <report_code>                       # row counts and imported pulls
 ```
 
-`import`, `analyse`, `report` and `watch` arrive with the layers above.
+`analyse`, `report` and `watch` arrive with the layers above.
 
 Offline checks, needing no credentials and no network:
 
@@ -44,6 +46,7 @@ python tests/offline_check.py
 - [CLAUDE.md](CLAUDE.md) — conventions and invariants for anyone working here.
 - [LOG.md](LOG.md) — what has been built, and what is outstanding.
 - [docs/wcl-api.md](docs/wcl-api.md) — measured API behaviour.
+- [docs/schema.md](docs/schema.md) — the database schema and its reasoning.
 
 ## Architecture
 
@@ -104,28 +107,24 @@ that applies to a given pull comes from the `specID` on that fight's
 `CombatantInfo` event, so the analysis layer must key the specialisation
 profile on `(report, fight, player)`.
 
-### Planned SQLite schema
+### SQLite schema
 
-Dimension tables `report`, `fight`, `actor`, `ability`, plus `fight_player`
-holding the per-fight specialisation, role, item level and talents.
+One wide `event` table rather than one per event type, dimension tables around
+it, and `fight_player` carrying the specialisation each player held for each
+pull. Import replaces exactly the rows one blob produced, so re-importing a
+report changes nothing.
 
-One wide `event` table rather than one table per event type. Analysis crosses
-types constantly: what was cast in the seconds before a death, whether a
-defensive was up when a boss ability landed. A single timeline ordered by
-`t_rel_ms` makes each of those one query. `t_rel_ms` and `source_key` are
-denormalised onto every row because they are the axes almost every query uses.
-
-`import_log(report_code, fight_id, stream, subject, blob_sha256, rows,
-imported_at)` lets import skip a blob whose hash has not changed.
-
-Pre-aggregated `table()` and `graph()` responses are stored separately in
-`table_snapshot`, with typed projections extracted as needed.
+Full description in [docs/schema.md](docs/schema.md).
 
 ### Analysis modules
 
-Each module declares the streams it needs and returns a title, summary lines,
-an optional table, and a flat `metrics` dictionary. Every metric is written to
-one long-format table:
+Not written, and not to be written without design input. The intent is
+specific patterns worth examining, and throughput statistics of the
+casts-per-minute kind are what Warcraft Logs already shows on its own site.
+
+The plumbing they will plug into is settled. Each module declares the streams
+it needs and returns a title, summary lines, an optional table, and a flat
+`metrics` dictionary. Every metric is written to one long-format table:
 
 ```sql
 metric(player_key, report_code, fight_id, analysis_key, metric_key, value)
@@ -134,10 +133,6 @@ metric(player_key, report_code, fight_id, analysis_key, metric_key, value)
 Trend comparison, night-over-night reporting and history all read `metric` and
 know nothing about individual modules, so a new module needs no schema change
 and no edit to the report layer.
-
-Specialisation knowledge — cooldown list and durations, defensives, expected
-buffs — lives in a data file rather than in module code, so one generic module
-covers cooldown usage against theoretical maximum for any specialisation.
 
 ## Measured cost
 

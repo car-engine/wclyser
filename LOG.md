@@ -20,14 +20,42 @@ What has been built, and what is still open. Newest entries first.
   against a real report. `LFR`, `Normal`, `Heroic` and `Mythic+` in
   `wcl_analyser/fetch/meta.py` are assumed and should be checked against a
   report at each difficulty.
-- **CombatantInfo carries an empty `talents` array** in this expansion's data.
-  Talent information may sit under `talentTree` instead. Check before building
-  specialisation profiles, which need to know the talents taken.
 - **The `Healing` stream is filtered from the target side**, giving healing
   received. A healer subject would want it filtered from the source side. The
   fetch plan has no per-subject stream overrides yet.
+- **`resourcechange` events on this boss all report a change of zero.** Every
+  one of the 207 resource rows for Nevaritius has `resourceChange: 0` against
+  ability 457578. That is what the API returns; whether soul shard generation
+  and spending appear under a different stream is unchecked.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
+
+## 2026-08-31, later
+
+Normalise layer built. SQLite schema, a forward-only migration runner, the
+event mappers and `wcla import`. Run against the focus, Nevaritius playing
+Destruction on Entombed Sentinels Mythic: 11 pulls, 124,815 event rows and 220
+`fight_player` rows in a 50 MB database. A second import changed nothing, with
+all 143 blobs recognised as unchanged.
+
+Import reads the blob cache and never the API, so it needs no credentials and
+cannot spend points. An expected blob that is absent is reported.
+
+`CombatantInfo.talentTree` does hold the talents, which closes the open item
+above it. Ability ids, node ids and ranks; hashed into `fight_player.talent_hash`
+so a mid-night respec is visible.
+
+Found while checking the imported data: **the resource an event changed is not
+the resource the actor holds.** A warlock spending a soul shard reports
+`resourceChangeType: 7` with a maximum of 50, while `classResources` reports a
+mana pool of 242,263 out of 250,000. The first mapper put both in one set of
+columns, which made every resource row nonsense. They now have separate
+columns, `resource_*` and `pool_*`. The schema had not been committed, so this
+was corrected in `001_initial.sql` and the database rebuilt from cache rather
+than carried as a migration.
+
+Also decided: no `raw` JSON column on `event`. It would add roughly 130 MB per
+night where the gzipped blobs already hold the same content at 7 MB.
 
 ## 2026-08-31
 
