@@ -18,7 +18,7 @@ What has been built, and what is still open. Newest entries first.
   feature needs something this client does not have. Unresolved.
 - **The difficulty id map is mostly unverified.** Only 5 = Mythic is confirmed
   against a real report. `LFR`, `Normal`, `Heroic` and `Mythic+` in
-  `wcl_analyser/fetch/meta.py` are assumed and should be checked against a
+  `wclyser/fetch/meta.py` are assumed and should be checked against a
   report at each difficulty.
 - **The `Healing` stream is filtered from the target side**, giving healing
   received. A healer subject would want it filtered from the source side. The
@@ -29,6 +29,26 @@ What has been built, and what is still open. Newest entries first.
   `docs/wcl-api.md`. Whether a fragment-level source exists is unchecked.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
+
+## 2026-08-31, renamed
+
+`wcl-analyser` became `wclyser`, and the command `wcla` became `wcly`. The
+Python package directory moved with it, `git mv wcl_analyser wclyser`.
+
+Renamed with it, since they carry the project's identity rather than Warcraft
+Logs':
+
+- `WCL_ANALYSER_CONFIG` to `WCLYSER_CONFIG`.
+- The fallback config location, `~/.config/wcl-analyser/` to `~/.config/wclyser/`.
+- The database file, `data/wcl.sqlite` to `data/wclyser.sqlite`, rebuilt from
+  cache in half a second.
+
+Left alone, because there `WCL` means Warcraft Logs: `WCL_CLIENT_ID`,
+`WCL_CLIENT_SECRET`, the `WCLError` hierarchy, and `docs/wcl-api.md`.
+
+61 replacements across 14 files. The repository directory is still
+`wcl-analyser`; renaming it invalidates the editable install's absolute path,
+so it is a separate step for when the folder is not in use.
 
 ## 2026-08-31, later still
 
@@ -42,12 +62,12 @@ space in a file meant to grow across a tier.
 
 Added:
 
-- `wcla coverage`, and `db.coverage.require` for modules to call. It compares
+- `wcly coverage`, and `db.coverage.require` for modules to call. It compares
   the streams an analysis declares against `import_log` and reports the gap
   with the command that fixes it, distinguishing a stream that is cached and
   merely unimported, where the fix is free, from one never fetched, where the
   fix costs points.
-- `wcla prune`, to drop streams the import list no longer wants without a full
+- `wcly prune`, to drop streams the import list no longer wants without a full
   rebuild. `combatant_info` is never a pruning candidate, because it feeds
   `fight_player` rather than `event`.
 - `--database <path>` on any command, for a side-by-side rebuild.
@@ -69,7 +89,7 @@ continuously, and the level sitting at its cap of 5.0 is directly visible.
 ## 2026-08-31, later
 
 Normalise layer built. SQLite schema, a forward-only migration runner, the
-event mappers and `wcla import`. Run against the focus, Nevaritius playing
+event mappers and `wcly import`. Run against the focus, Nevaritius playing
 Destruction on Entombed Sentinels Mythic: 11 pulls, 124,815 event rows and 220
 `fight_player` rows in a 50 MB database. A second import changed nothing, with
 all 143 blobs recognised as unchanged.

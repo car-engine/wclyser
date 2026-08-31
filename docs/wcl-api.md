@@ -121,7 +121,7 @@ at all. Without it none of this is present.
 - `Report.startTime` is unix milliseconds. Every event and fight timestamp is
   milliseconds relative to that.
 - Difficulty 5 is Mythic, confirmed. The other ids in
-  `wcl_analyser/fetch/meta.py` are assumed.
+  `wclyser/fetch/meta.py` are assumed.
 
 ## Rate limit
 

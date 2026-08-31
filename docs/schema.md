@@ -1,7 +1,7 @@
 # Database schema
 
 Schema version 2. The authoritative definition is
-the numbered files in `wcl_analyser/db/migrations/`; this describes why it is
+the numbered files in `wclyser/db/migrations/`; this describes why it is
 shaped that way.
 
 ## Times
@@ -65,7 +65,7 @@ number would go stale the moment an older night is imported late.
 
 ## Two field-name traps
 
-Both are handled in `wcl_analyser/db/mappers.py`, and both would corrupt a
+Both are handled in `wclyser/db/mappers.py`, and both would corrupt a
 column silently.
 
 **`absorb` against `absorbed`.** In `damage_taken`, `absorbed` is the portion
@@ -109,12 +109,12 @@ at a few hundred kilobytes. Importing is narrowed by `import.streams` in
 whole tier.
 
 The same eleven pulls import to 47.5 MB with all thirteen streams and 1.55 MB
-with `casts` and `resources` alone, a factor of thirty. `wcla prune` drops
+with `casts` and `resources` alone, a factor of thirty. `wcly prune` drops
 streams the import list no longer wants, and `combatant_info` is never a
 pruning candidate because it feeds `fight_player` rather than `event`.
 
 An analysis that needs a stream which was not imported must not answer over
-missing rows. `wcl_analyser.db.coverage.require` compares what a module
+missing rows. `wclyser.db.coverage.require` compares what a module
 declares against `import_log` and raises `MissingData` carrying the command to
 run, distinguishing a stream that is cached and merely unimported, where the
 fix is free, from one that was never fetched, where the fix costs points.

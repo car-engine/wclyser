@@ -8,13 +8,13 @@ and `LOG.md` for what has been done and what is outstanding.
 ```bash
 pip install -e .                     # into .venv
 python tests/offline_check.py        # no credentials, no network
-wcla fights <report_code>            # pulls, with the focus marked
-wcla players <report_code>           # roster and resolved subjects
-wcla fetch <report_code>             # fetch and cache, narrowed by the focus
-wcla import <report_code>            # cached blobs into SQLite, no credentials
-wcla coverage <report_code>          # what is needed against what is imported
-wcla prune <report_code>             # drop streams the import list no longer wants
-wcla budget                          # hourly API point budget
+wcly fights <report_code>            # pulls, with the focus marked
+wcly players <report_code>           # roster and resolved subjects
+wcly fetch <report_code>             # fetch and cache, narrowed by the focus
+wcly import <report_code>            # cached blobs into SQLite, no credentials
+wcly coverage <report_code>          # what is needed against what is imported
+wcly prune <report_code>             # drop streams the import list no longer wants
+wcly budget                          # hourly API point budget
 ```
 
 Run the offline checks after any change to the fetch layer. They cover

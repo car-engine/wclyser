@@ -1,4 +1,4 @@
-# wcl-analyser
+# wclyser
 
 Personal Warcraft Logs raid performance analysis. Fetches raw event data for
 chosen players, accumulates it across raid nights, and reports on how the play
@@ -24,15 +24,15 @@ gitignored, and holds the players and the pulls under study.
 ## Commands
 
 ```bash
-wcla budget                                    # hourly API point budget
-wcla fights <report_code>                      # pulls, with kill/wipe and pull numbers
-wcla players <report_code>                     # roster, specs played, resolved subjects
-wcla streams                                   # the fetch plan
-wcla fetch <report_code> --player <name>       # fetch and cache raw events
-wcla import <report_code>                      # cached blobs into SQLite
-wcla coverage <report_code> --stream casts     # what an analysis needs vs what is in
-wcla prune <report_code>                       # drop streams the import list dropped
-wcla stats <report_code>                       # row counts and imported pulls
+wcly budget                                    # hourly API point budget
+wcly fights <report_code>                      # pulls, with kill/wipe and pull numbers
+wcly players <report_code>                     # roster, specs played, resolved subjects
+wcly streams                                   # the fetch plan
+wcly fetch <report_code> --player <name>       # fetch and cache raw events
+wcly import <report_code>                      # cached blobs into SQLite
+wcly coverage <report_code> --stream casts     # what an analysis needs vs what is in
+wcly prune <report_code>                       # drop streams the import list dropped
+wcly stats <report_code>                       # row counts and imported pulls
 ```
 
 `--database <path>` on any command overrides the SQLite file, for a
@@ -127,7 +127,7 @@ pulls import to 47.5 MB with all thirteen streams and 1.55 MB with `casts` and
 `resources` alone.
 
 An analysis that needs a stream which was not imported does not answer over
-missing rows. It declares what it reads, and `wcla coverage` — or
+missing rows. It declares what it reads, and `wcly coverage` — or
 `db.coverage.require` from inside a module — reports the gap with the command
 that fixes it, distinguishing a stream that is merely unimported, where the fix
 is free, from one that was never fetched, where the fix costs points.
