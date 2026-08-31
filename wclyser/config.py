@@ -216,11 +216,11 @@ def load_config(explicit: str | Path | None = None) -> Config:
 
     client_id, client_secret = load_credentials(path)
 
-    data_dir = Path(raw.get("data_dir", "data")).expanduser()
-    if path is not None and not data_dir.is_absolute():
-        data_dir = (path.parent / data_dir).resolve()
-    else:
-        data_dir = data_dir.resolve()
+    # A relative data_dir is relative to where the command runs, not to the
+    # config file. Config files sit together in a directory of saved runs while
+    # the data store is one shared place, so resolving against the file would
+    # give each config its own empty store.
+    data_dir = Path(raw.get("data_dir", "data")).expanduser().resolve()
 
     subj = raw.get("subjects") or {}
     auto = subj.get("auto_select") or {}
