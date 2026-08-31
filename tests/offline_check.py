@@ -289,6 +289,9 @@ def main() -> int:
         print("coverage and pruning")
         _check_coverage(tmp, config, meta, alpha, fetcher)
 
+        print("havoc analysis")
+        _check_havoc()
+
         print("\nall offline checks passed")
         return 0
     finally:
@@ -447,6 +450,80 @@ def _check_coverage(tmp: Path, config, meta, alpha, fetcher) -> None:
     check("a pruned stream reads as a gap again", not cov.complete)
 
     conn.close()
+
+def _check_havoc() -> None:
+    """Window construction and spell classification, on hand-built casts."""
+    from wclyser.analysis import REGISTRY, resolve
+    from wclyser.analysis.havoc import Cast, Priorities, _build_windows
+    from wclyser.analysis.profiles import available, load_profile
+
+    check("the havoc module is registered", "havoc" in REGISTRY)
+    check("it declares the casts stream",
+          REGISTRY["havoc"].requires == frozenset({"casts"}))
+    check("resolve finds it by key", resolve(["havoc"])[0].key == "havoc")
+
+    profile = load_profile("warlock_destruction")
+    check("the Destruction profile loads", profile is not None)
+    check("it is listed", "warlock_destruction" in available())
+    check("its window is 20 seconds", profile["havoc"]["window_s"] == 20)
+
+    priorities = Priorities(profile["havoc"])
+    check("Soul Fire is the best good spell", priorities.classify("Soul Fire") == ("good", 1))
+    check("Incinerate is the filler", priorities.classify("Incinerate") == ("good", 5))
+    check("Summon Infernal is the worst bad spell",
+          priorities.classify("Summon Infernal") == ("bad", 1))
+    check("an unlisted spell is other",
+          priorities.classify("Burning Rush") == ("other", None))
+    check("matching ignores case", priorities.classify("chaos bolt") == ("good", 3))
+
+    # A pull of 100s with two Havoc casts, the second only 5s after the first.
+    casts = [
+        Cast(1_000, "Havoc", 80240),
+        Cast(2_000, "Chaos Bolt", 116858),
+        Cast(4_000, "Wither", 445468),
+        Cast(6_000, "Havoc", 80240),          # cuts the first window short
+        Cast(7_000, "Shadowburn", 17877),
+        Cast(95_000, "Incinerate", 29722),    # beyond the second window
+    ]
+    windows = _build_windows(casts, "Havoc", 20_000, 100_000, fight_id=1, pull_number=1)
+    check("one window per Havoc cast", len(windows) == 2, str(len(windows)))
+
+    first, second = windows
+    check("the next Havoc cuts the first window short", first.end_ms == 6_000,
+          str(first.end_ms))
+    check("the first window holds only what fell inside it",
+          [c.ability for c in first.casts] == ["Chaos Bolt", "Wither"],
+          str([c.ability for c in first.casts]))
+    check("the opening Havoc is not counted as content",
+          all(c.ability != "Havoc" for c in first.casts))
+    check("the second window runs its full length", second.end_ms == 26_000,
+          str(second.end_ms))
+    check("a cast after the window is excluded",
+          [c.ability for c in second.casts] == ["Shadowburn"],
+          str([c.ability for c in second.casts]))
+
+    # A Havoc late in the pull is truncated by the end of the pull.
+    late = _build_windows(
+        [Cast(90_000, "Havoc", 80240), Cast(95_000, "Chaos Bolt", 116858)],
+        "Havoc", 20_000, 100_000, fight_id=1, pull_number=1,
+    )
+    check("the end of the pull truncates a window", late[0].end_ms == 100_000,
+          str(late[0].end_ms))
+    check("casts before the pull ends still count", len(late[0].casts) == 1)
+
+    # A cast landing exactly on the boundary belongs to the window.
+    edge = _build_windows(
+        [Cast(0, "Havoc", 80240), Cast(20_000, "Chaos Bolt", 116858),
+         Cast(20_001, "Incinerate", 29722)],
+        "Havoc", 20_000, 100_000, fight_id=1, pull_number=1,
+    )
+    check("a cast on the boundary is inside",
+          [c.ability for c in edge[0].casts] == ["Chaos Bolt"],
+          str([c.ability for c in edge[0].casts]))
+
+    check("a pull with no Havoc has no windows",
+          _build_windows([Cast(1_000, "Chaos Bolt", 116858)], "Havoc", 20_000,
+                         100_000, fight_id=1, pull_number=1) == [])
 
 if __name__ == "__main__":
     raise SystemExit(main())
