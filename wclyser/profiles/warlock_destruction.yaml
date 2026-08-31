@@ -1,0 +1,31 @@
+# Destruction Warlock.
+#
+# Spells are named as they appear in the log. Editing these lists changes the
+# analysis; no code changes with them. A name that matches nothing in the
+# report is reported rather than ignored.
+
+class: Warlock
+spec: Destruction
+
+havoc:
+  # The spell that opens a window, and how long the window lasts. 20 seconds
+  # assumes the Improved Havoc talent.
+  ability: Havoc
+  window_s: 20
+
+  # Best first. Rank 1 is the best use of a duplicated cast.
+  good:
+    - Soul Fire
+    - Shadowburn
+    - Chaos Bolt
+    - Conflagrate
+    - Incinerate
+
+  # Worst first. These should not be cast inside a window.
+  bad:
+    - Summon Infernal
+    - Malevolence
+    - Wither
+
+  # Everything else is recorded but not judged. Movement, defensives,
+  # healthstones and utility land here.
