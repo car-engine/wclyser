@@ -68,7 +68,11 @@ class CommaList(argparse.Action):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="wcly", description=__doc__)
-    parser.add_argument("--config", help="path to config.yaml")
+    parser.add_argument(
+        "--config",
+        help="YAML file holding a saved run: subjects, focus, modules, import "
+             "streams. Read only when named here",
+    )
     parser.add_argument(
         "--database", help="path to the SQLite file; overrides the one in data_dir"
     )
@@ -171,9 +175,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--player", action=CommaList, help="subject; repeat or comma-separate"
     )
     ana.add_argument(
-        "--module", action=CommaList, required=True,
-        help=f"analysis module to run; repeat or comma-separate. "
-             f"Known: {', '.join(sorted(MODULES))}",
+        "--module", action=CommaList,
+        help=f"analysis module to run; repeat or comma-separate. Required "
+             f"unless a config names one. Known: {', '.join(sorted(MODULES))}",
     )
     ana.add_argument(
         "--fight", action=CommaList, item_type=int,
@@ -257,6 +261,18 @@ def _load(args: argparse.Namespace):
     if getattr(args, "database", None):
         config.database = Path(args.database)
     return config
+
+
+def _modules_for(args: argparse.Namespace, config) -> list:
+    """The modules to run: the flag, else a config that named some."""
+    keys = args.module or config.analysis.modules
+    if not keys:
+        raise WCLError(
+            "no analysis module. Pass --module, or name one under analysis.modules "
+            "in a config file given with --config. "
+            f"Known: {', '.join(sorted(MODULES))}"
+        )
+    return resolve_modules(list(keys))
 
 
 def _describe_focus(encounter, difficulty, spec) -> str:
@@ -349,7 +365,8 @@ def cmd_fetch(args: argparse.Namespace) -> int:
 
     if not subjects and any(s.scope is Scope.SUBJECT for s in streams):
         raise WCLError(
-            "no subjects resolved. Pass --player, or set subjects in config.yaml. "
+            "no subjects resolved. Pass --player, or name a config with --config "
+            "that sets subjects. "
             f"Players in this report: "
             f"{', '.join(sorted(a.player_key for a in meta.players()))}"
         )
@@ -502,7 +519,8 @@ def cmd_prune(args: argparse.Namespace) -> int:
     keep = args.keep or config.import_.streams
     if not keep:
         raise WCLError(
-            "nothing to prune against: set import.streams in config.yaml, or pass --keep"
+            "nothing to prune against: pass --keep, or name a config with --config "
+            "that sets import.streams"
         )
     keep = [s.key for s in resolve_streams(keep)]
     # CombatantInfo feeds fight_player rather than the event table, and is
@@ -540,7 +558,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
     if not subjects and any(s.scope is Scope.SUBJECT for s in streams):
         raise WCLError(
-            "no subjects resolved. Pass --player, or set subjects in config.yaml."
+            "no subjects resolved. Pass --player, or name a config with --config "
+            "that sets subjects."
         )
 
     encounter, difficulty, spec = _focus(args, config)
@@ -588,7 +607,7 @@ def cmd_analyse(args: argparse.Namespace) -> int:
     config = _load(args)
     meta = load_offline_meta(config.raw_dir, args.code)
     subjects, fights = _analysis_scope(args, config, meta)
-    modules = resolve_modules(args.module)
+    modules = _modules_for(args, config)
     conn = open_database(config.db_path)
 
     pages_to = None
@@ -673,7 +692,8 @@ def _analysis_scope(args, config, meta):
     subjects = meta.resolve_subjects(config, args.player)
     if not subjects:
         raise WCLError(
-            "no subjects resolved. Pass --player, or set subjects in config.yaml."
+            "no subjects resolved. Pass --player, or name a config with --config "
+            "that sets subjects."
         )
     encounter, difficulty, spec = _focus(args, config)
     fights = select_fights(meta.fights, encounter, difficulty, args.fight)
