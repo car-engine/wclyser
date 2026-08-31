@@ -33,6 +33,7 @@ wcly import <report_code>                      # cached blobs into SQLite
 wcly coverage <report_code> --stream casts     # what an analysis needs vs what is in
 wcly prune <report_code>                       # drop streams the import list dropped
 wcly stats <report_code>                       # row counts and imported pulls
+wcly analyse <report_code> --module havoc      # run analysis modules
 ```
 
 `--database <path>` on any command overrides the SQLite file, for a
@@ -136,21 +137,32 @@ Full description in [docs/schema.md](docs/schema.md).
 
 ### Analysis modules
 
-Not written, and not to be written without design input. The intent is
-specific patterns worth examining, and throughput statistics of the
-casts-per-minute kind are what Warcraft Logs already shows on its own site.
+A module declares the streams it reads and returns a `Result`. The runner
+checks coverage before calling it, so a module never sees a pull whose data
+was not imported and never has to guard against missing rows itself.
 
-The plumbing they will plug into is settled. Each module declares the streams
-it needs and returns a title, summary lines, an optional table, and a flat
-`metrics` dictionary. Every metric is written to one long-format table:
+```python
+@analysis("havoc", title="Havoc windows", requires={"casts"})
+def run(ctx: Ctx) -> dict[str, Result]: ...
+```
+
+Presentation stays in the module, because a general table renderer would suit
+none of them. What the framework takes is the `metrics` dictionary, written to
+one long-format table:
 
 ```sql
 metric(player_key, report_code, fight_id, analysis_key, metric_key, value)
 ```
 
-Trend comparison, night-over-night reporting and history all read `metric` and
-know nothing about individual modules, so a new module needs no schema change
-and no edit to the report layer.
+Trend comparison and history read `metric` and know nothing about individual
+modules, so a new module needs no schema change and no edit elsewhere.
+
+Specialisation knowledge is data, not code. `wclyser/profiles/<class>_<spec>.yaml`
+holds the spell lists, and the profile is chosen per pull, because a player who
+respecs between bosses has one specialisation for some pulls and another for
+the rest.
+
+Built so far: `havoc`, which lists what was cast inside each Havoc window.
 
 ## Measured cost
 

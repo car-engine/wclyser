@@ -30,6 +30,32 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01
+
+First analysis module: `havoc`, listing what was cast inside each Havoc window
+for a Destruction Warlock. With it, the analysis framework: a registry, a
+`Result` carrying formatted lines and a metrics dictionary, per-pull
+specialisation profiles as YAML, and `wcly analyse`.
+
+The runner calls `db.coverage.require` before a module runs, so a module that
+reads a stream nobody imported fails with the command to fix it. The module
+reads `casts` alone, which is one of the two streams the import keeps.
+
+Result over the eleven Entombed Sentinels pulls: 54 windows, 877 casts, 16.2
+per window. 50 of 54 windows contain a spell from the bad list, but 48 of those
+50 are Wither, and windows cover 52% of the analysed time.
+
+Two things checked before trusting the output:
+
+- 22 casts in a 20-second window looked impossible, but the database matches
+  the blob exactly and the `begincast` events explain it. A hard cast occupies
+  the global cooldown from its start, so a queued instant fires in the same
+  millisecond the hard cast completes. Haste-reduced Chaos Bolts of 0.8 to 1.2
+  seconds with Conflagrate woven between them give that rate.
+- No pet casts are counted. `source_key` resolves a pet to its owner, which is
+  right for damage and would have been wrong here, but the subject's own casts
+  are the only ones in the stream for this pull.
+
 ## 2026-08-31, renamed
 
 `wcl-analyser` became `wclyser`, and the command `wcla` became `wcly`. The
@@ -187,5 +213,5 @@ Decided:
 
 ## Next
 
-The analysis layer, once the patterns to examine have been designed. The
-plumbing is in place: modules read only from SQLite and write to `metric`.
+Judge the Havoc output and adjust `wclyser/profiles/warlock_destruction.yaml`,
+then decide the second module.

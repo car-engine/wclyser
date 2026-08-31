@@ -27,6 +27,10 @@ write a credential into a source file, a config file, a test or a commit
 message. `.env` and `wcl_casts_export.py` are both gitignored; keep them that
 way.
 
+**Spell priorities are data.** They live in `wclyser/profiles/<class>_<spec>.yaml`
+and are chosen per pull from `fight_player.spec`. Changing what counts as a
+good or bad spell is an edit to the profile, never to a module.
+
 **Do not build analysis modules unprompted.** This is a tool for specific
 patterns the user wants examined, and each module needs their design input
 first. Generic output — casts per minute, activity percentage, damage rankings
