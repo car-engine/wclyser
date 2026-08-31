@@ -30,6 +30,19 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, page output folded into analyse
+
+`wcly analyse --module havoc --html` prints the result, writes the metrics and
+renders the page from one run, so the three cannot disagree. The separate
+`report` command was the same computation with a different renderer, and it did
+not write metrics, so a night reported but never analysed left the trend table
+empty.
+
+`wcly report` is kept as a placeholder for the cross-night document it was
+always specified to be: a summary read from the `metric` table across nights.
+That one does depend on analyse having run, which is a real dependency rather
+than a nominal one. It prints what it is reserved for and exits non-zero.
+
 ## 2026-09-01, --module required
 
 `analyse` and `report` both demand `--module`. Omitting it used to run every

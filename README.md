@@ -34,7 +34,7 @@ wcly coverage <report_code> --stream casts     # what an analysis needs vs what 
 wcly prune <report_code>                       # drop streams the import list dropped
 wcly stats <report_code>                       # row counts and imported pulls
 wcly analyse <report_code> --module havoc      # run a module, print it, store metrics
-wcly report <report_code> --module havoc       # run a module, write an HTML page
+wcly analyse <report_code> --module havoc --html   # and write an HTML page
 ```
 
 `--database <path>` on any command overrides the SQLite file, for a
@@ -180,14 +180,18 @@ Templates are per module rather than generic, in
 `wclyser/report/templates/`. The Havoc page draws a raster of cast marks
 against a window, which no general table renderer would produce.
 
-`--module` is required on both `analyse` and `report`. Neither defaults to
-running everything, because a module is a specific question and running the lot
-by accident is not useful.
+`--module` is required, because a module is a specific question and running
+every one of them by accident is not useful.
 
 ```bash
-wcly report <code> --module havoc                    # one page per subject
-wcly report <code> --module havoc --player X --out p.html   # one named file
+wcly analyse <code> --module havoc --html                  # one page per subject
+wcly analyse <code> --module havoc --html data/reports     # into a directory
+wcly analyse <code> --module havoc --player X --html p.html   # one named file
 ```
+
+A page comes from the same run that prints the terminal output and writes the
+metrics, so the three can never disagree. `wcly report` is reserved for a
+cross-night document that reads the `metric` table, and is not built yet.
 
 `--player`, `--module`, `--stream`, `--fight` and `--keep` all take a value
 per flag or several separated by commas, and the two forms mix:
