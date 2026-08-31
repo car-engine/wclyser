@@ -18,5 +18,3 @@ reports/
 *.sqlite
 *.sqlite-journal
 
-# throwaway prototype, contains a client secret
-wcl_casts_export.py
