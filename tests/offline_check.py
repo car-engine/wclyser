@@ -16,12 +16,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcl_analyser.config import Config, FetchSettings, SubjectRules  # noqa: E402
-from wcl_analyser.errors import ConfigError  # noqa: E402
-from wcl_analyser.fetch import Fetcher, resolve_streams  # noqa: E402
-from wcl_analyser.fetch.meta import parse_report  # noqa: E402
-from wcl_analyser.fetch.scopes import BY_KEY  # noqa: E402
-from wcl_analyser.db import Importer, open_database  # noqa: E402
+from wclyser.config import Config, FetchSettings, SubjectRules  # noqa: E402
+from wclyser.errors import ConfigError  # noqa: E402
+from wclyser.fetch import Fetcher, resolve_streams  # noqa: E402
+from wclyser.fetch.meta import parse_report  # noqa: E402
+from wclyser.fetch.scopes import BY_KEY  # noqa: E402
+from wclyser.db import Importer, open_database  # noqa: E402
 
 REPORT_PAYLOAD = {
     "code": "TEST123",
@@ -201,7 +201,7 @@ def check(name: str, condition: bool, detail: str = "") -> None:
 
 
 def main() -> int:
-    tmp = Path(tempfile.mkdtemp(prefix="wcla-check-"))
+    tmp = Path(tempfile.mkdtemp(prefix="wcly-check-"))
     try:
         meta = parse_report(REPORT_PAYLOAD, "2026-08-31T00:00:00+00:00")
 
@@ -374,8 +374,8 @@ def _check_database(tmp: Path, config, meta, alpha, fetcher) -> None:
 
 def _check_coverage(tmp: Path, config, meta, alpha, fetcher) -> None:
     """The feedback an analysis gets when the database lacks what it needs."""
-    from wcl_analyser.db import MissingData, check as coverage_check, prune_streams
-    from wcl_analyser.db import require as coverage_require
+    from wclyser.db import MissingData, check as coverage_check, prune_streams
+    from wclyser.db import require as coverage_require
 
     casts = BY_KEY["casts"]
     buffs = BY_KEY["buffs"]
@@ -393,13 +393,13 @@ def _check_coverage(tmp: Path, config, meta, alpha, fetcher) -> None:
     check("a cached but unimported stream is a gap", len(cov.gaps) == 1)
     check("its remedy is an import", cov.needs_import and not cov.needs_fetch)
     check("the message names the command",
-          "wcla import" in cov.message() and "--stream buffs" in cov.message(),
+          "wcly import" in cov.message() and "--stream buffs" in cov.message(),
           cov.message())
 
     # deaths was never fetched, so the remedy has to start with a fetch.
     cov = coverage_check(conn, config, meta, [fight], [alpha], ["deaths"])
     check("an uncached stream needs fetching", len(cov.needs_fetch) == 1)
-    check("the message says a fetch comes first", "wcla fetch" in cov.message(),
+    check("the message says a fetch comes first", "wcly fetch" in cov.message(),
           cov.message())
 
     try:
@@ -412,8 +412,8 @@ def _check_coverage(tmp: Path, config, meta, alpha, fetcher) -> None:
     check("require passes when the data is there", cov.complete)
 
     # Pruning drops a stream the import list no longer wants.
-    from wcl_analyser.fetch.scopes import subject_slug
-    from wcl_analyser.db import Importer
+    from wclyser.fetch.scopes import subject_slug
+    from wclyser.db import Importer
 
     Importer(conn, config, meta).run([fight], [alpha], [casts, buffs])
     before = conn.execute(

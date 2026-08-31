@@ -398,7 +398,7 @@ def load_offline_meta(raw_dir: Path, code: str) -> ReportMeta:
     if not path.is_file():
         raise WCLError(
             f"no cached metadata for report {code} at {path}. "
-            f"Run 'wcla fetch {code}' first."
+            f"Run 'wcly fetch {code}' first."
         )
     with gzip.open(path, "rt", encoding="utf-8") as fh:
         payload = json.load(fh)

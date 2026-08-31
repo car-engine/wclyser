@@ -2,7 +2,7 @@
 
 Import reads the blob cache and never the API, so it needs no credentials and
 cannot spend API points. A blob that is expected and absent is reported rather
-than fetched; run ``wcla fetch`` and import again.
+than fetched; run ``wcly fetch`` and import again.
 
 Idempotency comes from the replacement unit matching the fetch unit. For one
 ``(report, fight, stream, subject)`` the importer deletes every row that tuple

@@ -1,8 +1,8 @@
 """Configuration loading.
 
 Credentials come from the environment only. Everything else comes from a YAML
-file, searched for at ``$WCL_ANALYSER_CONFIG``, then ``./config.yaml``, then
-``~/.config/wcl-analyser/config.yaml``. A missing file is not an error; the
+file, searched for at ``$WCLYSER_CONFIG``, then ``./config.yaml``, then
+``~/.config/wclyser/config.yaml``. A missing file is not an error; the
 defaults below are usable on their own.
 """
 
@@ -117,7 +117,7 @@ class Config:
 
     @property
     def db_path(self) -> Path:
-        return self.database or self.data_dir / "wcl.sqlite"
+        return self.database or self.data_dir / "wclyser.sqlite"
 
 
 def find_config_file(explicit: str | Path | None = None) -> Path | None:
@@ -126,15 +126,15 @@ def find_config_file(explicit: str | Path | None = None) -> Path | None:
         if not path.is_file():
             raise ConfigError(f"config file not found: {path}")
         return path
-    env = os.environ.get("WCL_ANALYSER_CONFIG")
+    env = os.environ.get("WCLYSER_CONFIG")
     if env:
         path = Path(env)
         if not path.is_file():
-            raise ConfigError(f"WCL_ANALYSER_CONFIG points at a missing file: {path}")
+            raise ConfigError(f"WCLYSER_CONFIG points at a missing file: {path}")
         return path
     candidates = [Path.cwd() / name for name in _CONFIG_NAMES]
     candidates += [
-        Path.home() / ".config" / "wcl-analyser" / name for name in _CONFIG_NAMES
+        Path.home() / ".config" / "wclyser" / name for name in _CONFIG_NAMES
     ]
     for candidate in candidates:
         if candidate.is_file():

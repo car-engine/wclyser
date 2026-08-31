@@ -10,7 +10,7 @@ any of the three idempotent.
 
 Blobs are written atomically and never rewritten once present, because a
 completed fight is immutable. Only fights that pass the finality check in
-:mod:`wcl_analyser.fetch.events` are written at all.
+:mod:`wclyser.fetch.events` are written at all.
 """
 
 from __future__ import annotations

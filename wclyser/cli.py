@@ -28,11 +28,11 @@ from .db import (
 )
 from .fetch.scopes import BY_KEY, Scope
 
-log = logging.getLogger("wcla")
+log = logging.getLogger("wcly")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="wcla", description=__doc__)
+    parser = argparse.ArgumentParser(prog="wcly", description=__doc__)
     parser.add_argument("--config", help="path to config.yaml")
     parser.add_argument(
         "--database", help="path to the SQLite file; overrides the one in data_dir"
@@ -318,7 +318,7 @@ def cmd_import(args: argparse.Namespace) -> int:
             print(f"  fight {fight_id:>3}  {stream:<20} {subject}")
         if len(summary.missing) > 20:
             print(f"  ... and {len(summary.missing) - 20} more")
-        print(f"Run 'wcla fetch {meta.code}' and import again.")
+        print(f"Run 'wcly fetch {meta.code}' and import again.")
     conn.close()
     return 0
 

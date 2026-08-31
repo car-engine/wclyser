@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wcl-analyser"
+name = "wclyser"
 version = "0.1.0"
 description = "Personal Warcraft Logs raid performance analysis toolkit"
 requires-python = ">=3.11"
@@ -14,10 +14,10 @@ dependencies = [
 ]
 
 [project.scripts]
-wcla = "wcl_analyser.cli:main"
+wcly = "wclyser.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["wcl_analyser*"]
+include = ["wclyser*"]
 
 [tool.setuptools.package-data]
-wcl_analyser = ["db/migrations/*.sql"]
+wclyser = ["db/migrations/*.sql"]

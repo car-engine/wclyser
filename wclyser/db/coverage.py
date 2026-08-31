@@ -73,14 +73,14 @@ class Coverage:
             lines.append(
                 f"{len(self.needs_import)} are already cached; re-import is free:"
             )
-            lines.append(f"  wcla import {self.report_code} {stream_flags}")
+            lines.append(f"  wcly import {self.report_code} {stream_flags}")
         if self.needs_fetch:
             lines.append(
                 f"{len(self.needs_fetch)} are not cached and must be fetched first, "
                 f"which spends API points:"
             )
-            lines.append(f"  wcla fetch {self.report_code} {stream_flags}")
-            lines.append(f"  wcla import {self.report_code} {stream_flags}")
+            lines.append(f"  wcly fetch {self.report_code} {stream_flags}")
+            lines.append(f"  wcly import {self.report_code} {stream_flags}")
         return "\n".join(lines)
 
 

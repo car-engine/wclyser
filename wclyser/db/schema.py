@@ -27,7 +27,7 @@ def connect(db_path: Path, read_only: bool = False) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if read_only:
         if not db_path.is_file():
-            raise WCLError(f"no database at {db_path}; run 'wcla import' first")
+            raise WCLError(f"no database at {db_path}; run 'wcly import' first")
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     else:
         conn = sqlite3.connect(db_path)
