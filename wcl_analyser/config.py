@@ -38,6 +38,30 @@ class SubjectRules:
 
 
 @dataclass
+class FocusRules:
+    """Narrows a fetch to the encounter and specialisation under study.
+
+    Any of these may be left unset, in which case it does not narrow anything.
+    """
+
+    encounter: str | int | None = None
+    difficulty: str | int | None = None
+    spec: str | None = None
+
+    def describe(self) -> str:
+        parts = [
+            f"{label} {value}"
+            for label, value in (
+                ("encounter", self.encounter),
+                ("difficulty", self.difficulty),
+                ("spec", self.spec),
+            )
+            if value is not None
+        ]
+        return ", ".join(parts) or "everything"
+
+
+@dataclass
 class FetchSettings:
     encounters_only: bool = True
     event_limit: int = 10000
@@ -62,6 +86,7 @@ class Config:
     client_secret: str
     data_dir: Path
     subjects: SubjectRules = field(default_factory=SubjectRules)
+    focus: FocusRules = field(default_factory=FocusRules)
     fetch: FetchSettings = field(default_factory=FetchSettings)
     http: HTTPSettings = field(default_factory=HTTPSettings)
     source_path: Path | None = None
@@ -101,6 +126,60 @@ def find_config_file(explicit: str | Path | None = None) -> Path | None:
     return None
 
 
+def read_dotenv(path: Path) -> dict[str, str]:
+    """Parse a ``KEY=value`` file. Blank lines and ``#`` comments are skipped."""
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+        key, sep, value = line.partition("=")
+        if not sep:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        values[key.strip()] = value
+    return values
+
+
+def load_credentials(config_path: Path | None) -> tuple[str, str]:
+    """Read the client credentials.
+
+    A real environment variable wins. Otherwise a ``.env`` file is read, from
+    beside the config file first and then the working directory. The values are
+    never written back into ``os.environ``, so they cannot leak into a child
+    process.
+    """
+    client_id = os.environ.get("WCL_CLIENT_ID", "")
+    client_secret = os.environ.get("WCL_CLIENT_SECRET", "")
+    if client_id and client_secret:
+        return client_id, client_secret
+
+    searched: list[Path] = []
+    if config_path is not None:
+        searched.append(config_path.parent / ".env")
+    searched.append(Path.cwd() / ".env")
+
+    for candidate in searched:
+        if not candidate.is_file():
+            continue
+        values = read_dotenv(candidate)
+        client_id = client_id or values.get("WCL_CLIENT_ID", "")
+        client_secret = client_secret or values.get("WCL_CLIENT_SECRET", "")
+        if client_id and client_secret:
+            return client_id, client_secret
+
+    where = ", ".join(str(p) for p in searched)
+    raise ConfigError(
+        "no client credentials. Export WCL_CLIENT_ID and WCL_CLIENT_SECRET, or "
+        f"put them in a .env file ({where}). Create a client at "
+        "https://www.warcraftlogs.com/api/clients/"
+    )
+
+
 def load_config(explicit: str | Path | None = None) -> Config:
     path = find_config_file(explicit)
     raw: dict[str, Any] = {}
@@ -109,13 +188,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
         if not isinstance(raw, dict):
             raise ConfigError(f"{path} must contain a YAML mapping at the top level")
 
-    client_id = os.environ.get("WCL_CLIENT_ID", "")
-    client_secret = os.environ.get("WCL_CLIENT_SECRET", "")
-    if not client_id or not client_secret:
-        raise ConfigError(
-            "set WCL_CLIENT_ID and WCL_CLIENT_SECRET in the environment "
-            "(create a client at https://www.warcraftlogs.com/api/clients/)"
-        )
+    client_id, client_secret = load_credentials(path)
 
     data_dir = Path(raw.get("data_dir", "data")).expanduser()
     if path is not None and not data_dir.is_absolute():
@@ -132,6 +205,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
         auto_select_spec=auto.get("spec"),
     )
 
+    focus = FocusRules(**(raw.get("focus") or {}))
     fetch = FetchSettings(**(raw.get("fetch") or {}))
     http = HTTPSettings(**(raw.get("http") or {}))
 
@@ -140,6 +214,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
         client_secret=client_secret,
         data_dir=data_dir,
         subjects=subjects,
+        focus=focus,
         fetch=fetch,
         http=http,
         source_path=path,
