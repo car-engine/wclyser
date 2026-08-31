@@ -41,9 +41,10 @@ all 143 blobs recognised as unchanged.
 Import reads the blob cache and never the API, so it needs no credentials and
 cannot spend points. An expected blob that is absent is reported.
 
-`CombatantInfo.talentTree` does hold the talents, which closes the open item
-above it. Ability ids, node ids and ranks; hashed into `fight_player.talent_hash`
-so a mid-night respec is visible.
+`CombatantInfo.talentTree` does hold the talents, which settles the open
+question left by the empty `talents` array. It carries ability ids, node ids
+and ranks, hashed into `fight_player.talent_hash` so a mid-night respec is
+visible.
 
 Found while checking the imported data: **the resource an event changed is not
 the resource the actor holds.** A warlock spending a soul shard reports
@@ -114,4 +115,5 @@ Decided:
 
 ## Next
 
-The normalise layer: SQLite schema, migrations, and `wcla import`.
+The analysis layer, once the patterns to examine have been designed. The
+plumbing is in place: modules read only from SQLite and write to `metric`.
