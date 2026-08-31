@@ -30,8 +30,13 @@ wcla players <report_code>                     # roster, specs played, resolved 
 wcla streams                                   # the fetch plan
 wcla fetch <report_code> --player <name>       # fetch and cache raw events
 wcla import <report_code>                      # cached blobs into SQLite
+wcla coverage <report_code> --stream casts     # what an analysis needs vs what is in
+wcla prune <report_code>                       # drop streams the import list dropped
 wcla stats <report_code>                       # row counts and imported pulls
 ```
+
+`--database <path>` on any command overrides the SQLite file, for a
+side-by-side rebuild.
 
 `analyse`, `report` and `watch` arrive with the layers above.
 
@@ -113,6 +118,19 @@ One wide `event` table rather than one per event type, dimension tables around
 it, and `fight_player` carrying the specialisation each player held for each
 pull. Import replaces exactly the rows one blob produced, so re-importing a
 report changes nothing.
+
+**Fetch wide, import narrow.** A blob costs API points once and then sits on
+disk at a few hundred kilobytes, so fetching pulls everything. Rows in the
+event table cost space in a file meant to grow across a whole tier, so
+`import.streams` in `config.yaml` decides what actually lands. The same eleven
+pulls import to 47.5 MB with all thirteen streams and 1.55 MB with `casts` and
+`resources` alone.
+
+An analysis that needs a stream which was not imported does not answer over
+missing rows. It declares what it reads, and `wcla coverage` — or
+`db.coverage.require` from inside a module — reports the gap with the command
+that fixes it, distinguishing a stream that is merely unimported, where the fix
+is free, from one that was never fetched, where the fix costs points.
 
 Full description in [docs/schema.md](docs/schema.md).
 

@@ -11,6 +11,9 @@ python tests/offline_check.py        # no credentials, no network
 wcla fights <report_code>            # pulls, with the focus marked
 wcla players <report_code>           # roster and resolved subjects
 wcla fetch <report_code>             # fetch and cache, narrowed by the focus
+wcla import <report_code>            # cached blobs into SQLite, no credentials
+wcla coverage <report_code>          # what is needed against what is imported
+wcla prune <report_code>             # drop streams the import list no longer wants
 wcla budget                          # hourly API point budget
 ```
 
@@ -34,6 +37,12 @@ Ask before writing anything in the analysis layer.
 behaviour is not what the field names suggest, and several definitions were
 wrong until they were checked against live data. See `docs/wcl-api.md`.
 
+**Fetch wide, import narrow.** Fetching pulls every stream, because a blob
+costs points once and then sits on disk. `import.streams` decides what reaches
+the database, because rows cost space in a file meant to grow across a tier.
+Never widen `import.streams` to make an analysis pass; the analysis declares
+what it reads and `db.coverage.require` reports the gap.
+
 ## Invariants
 
 Breaking any of these breaks the live-watch design, which depends on the fetch
@@ -48,6 +57,11 @@ layer being genuinely cache-first.
   in-progress pull is fetched and returned, and not written.
 - Each stream is fetched at exactly one scope, so two streams can never
   produce a row for the same event.
+- An analysis never answers over missing rows. It declares the streams it
+  reads and calls `db.coverage.require`, which raises with the command to run.
+- `import_log` records the blob hash and the schema version. Both must match
+  for import to skip the work, because a migration that adds a column leaves
+  existing rows null in it.
 - A blob records a fingerprint of the stream definition it was fetched under.
   Change a stream's dataType, hostility or filter side and the fingerprint
   changes, so old blobs are refetched instead of being read with the wrong

@@ -81,8 +81,35 @@ specialisation added in a later patch does not fall out of them:
 above: Nevaritius shows 266 (Demonology) on pulls 1 to 12 and 267
 (Destruction) on pulls 13 to 23.
 
-The `talents` array on CombatantInfo is empty in this expansion's data.
-`talentTree` may hold it instead; unverified.
+The `talents` array on CombatantInfo is empty in this expansion's data. The
+talents are in `talentTree` instead, as `{id, nodeID, rank}` entries.
+
+## Soul Shards, and resources generally
+
+The `Resources` dataType is close to useless for a warlock's shards. Across
+eleven Mythic pulls it produced 207 events of `resourceChangeType: 7` with
+`resourceChange: 0`, every one from Summon Overfiend, and 13 mana events with
+real values. `graph(dataType: Resources)` returned an empty series.
+
+The shard data is on the **cast events**, in `classResources`, and only on
+casts that spend shards:
+
+```json
+{"amount": 46, "cost": 20, "max": 50, "type": 7}
+```
+
+Type 7 is Soul Shards and the numbers are tenths, so that is 4.6 shards held
+of a maximum of 5, with the cast costing 2. Across the sample, 431 of 2,214
+casts carry a shard entry: Chaos Bolt 342, Shadowburn 65, Soulburn 24. A cast
+that costs no shards reports the mana pool instead.
+
+So the shard level is sampled at every spend, not tracked continuously.
+Generation has to be inferred from the level between consecutive spends. The
+level reaching its cap of 5.0 is directly visible, which is the wasted
+generation signal.
+
+`includeResources: true` on the events query is what attaches `classResources`
+at all. Without it none of this is present.
 
 ## Fields worth knowing
 

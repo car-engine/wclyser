@@ -23,12 +23,48 @@ What has been built, and what is still open. Newest entries first.
 - **The `Healing` stream is filtered from the target side**, giving healing
   received. A healer subject would want it filtered from the source side. The
   fetch plan has no per-subject stream overrides yet.
-- **`resourcechange` events on this boss all report a change of zero.** Every
-  one of the 207 resource rows for Nevaritius has `resourceChange: 0` against
-  ability 457578. That is what the API returns; whether soul shard generation
-  and spending appear under a different stream is unchecked.
+- **Soul Shard generation is not logged anywhere directly.** The level is
+  sampled at each spend, from `classResources` on the cast, so generation has
+  to be inferred from the level between consecutive spends. See
+  `docs/wcl-api.md`. Whether a fragment-level source exists is unchecked.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
+
+## 2026-08-31, later still
+
+Import narrowed, and the feedback path for missing data built.
+
+`import.streams` in `config.yaml` decides what reaches the database, now set to
+`casts` and `resources`. The same eleven pulls import to 47.5 MB with all
+thirteen streams and **1.55 MB** with those two, a factor of thirty. Fetching
+stays wide: a blob costs points once and then sits on disk, while a row costs
+space in a file meant to grow across a tier.
+
+Added:
+
+- `wcla coverage`, and `db.coverage.require` for modules to call. It compares
+  the streams an analysis declares against `import_log` and reports the gap
+  with the command that fixes it, distinguishing a stream that is cached and
+  merely unimported, where the fix is free, from one never fetched, where the
+  fix costs points.
+- `wcla prune`, to drop streams the import list no longer wants without a full
+  rebuild. `combatant_info` is never a pruning candidate, because it feeds
+  `fight_player` rather than `event`.
+- `--database <path>` on any command, for a side-by-side rebuild.
+- `import_log.schema_version`. A migration that adds a column leaves existing
+  rows null in it, so an unchanged blob hash is no longer enough on its own to
+  skip the work. Found the hard way: migration 002 added `pool_cost` and every
+  existing cast row stayed null in it.
+
+**Soul Shards are on the cast events, not in the `Resources` stream.** The
+`Resources` dataType gave 207 shard events all with `resourceChange: 0`, and
+`graph(dataType: Resources)` returned an empty series. The real data is
+`classResources` on a cast that spends shards: type 7, amount and cost in
+tenths, maximum 50. Chaos Bolt 342 casts, Shadowburn 65, Soulburn 24. The
+`cost` half was being dropped, and migration 002 adds `pool_cost` to carry it.
+
+That means the shard level is sampled at every spend rather than tracked
+continuously, and the level sitting at its cap of 5.0 is directly visible.
 
 ## 2026-08-31, later
 
@@ -41,8 +77,8 @@ all 143 blobs recognised as unchanged.
 Import reads the blob cache and never the API, so it needs no credentials and
 cannot spend points. An expected blob that is absent is reported.
 
-`CombatantInfo.talentTree` does hold the talents, which settles the open
-question left by the empty `talents` array. It carries ability ids, node ids
+`CombatantInfo.talentTree` holds the talents, settling the open question left
+by the empty `talents` array. It carries ability ids, node ids
 and ranks, hashed into `fight_player.talent_hash` so a mid-night respec is
 visible.
 

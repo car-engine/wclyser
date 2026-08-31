@@ -1,8 +1,8 @@
 # Database schema
 
-Schema version 1. The authoritative definition is
-`wcl_analyser/db/migrations/001_initial.sql`; this describes why it is shaped
-that way.
+Schema version 2. The authoritative definition is
+the numbered files in `wcl_analyser/db/migrations/`; this describes why it is
+shaped that way.
 
 ## Times
 
@@ -79,7 +79,12 @@ the pool the actor was carrying. For a warlock spending a soul shard those are
 shards and mana respectively — a change of type 7 with a maximum of 50, beside
 a pool of 242,263 out of 250,000. They get separate columns: `resource_type`,
 `resource_change`, `resource_max`, `resource_waste` for the change, and
-`pool_type`, `pool_amount`, `pool_max` for the snapshot.
+`pool_type`, `pool_amount`, `pool_max`, `pool_cost` for the snapshot.
+
+`pool_cost` is what the cast spent from that pool, and is the half of the pair
+that makes the snapshot useful. For a Destruction Warlock, `pool_type = 7` with
+`pool_amount` in tenths of a shard is the only place shard level appears at
+all; see `docs/wcl-api.md`.
 
 ## Idempotent import
 
@@ -95,6 +100,28 @@ target and an ability.
 
 `CombatantInfo` is the exception. It is not a timeline event, so it populates
 `fight_player` instead, replaced per pull rather than per stream.
+
+## Narrowing what is imported
+
+Fetching stays wide because a blob costs API points once and then sits on disk
+at a few hundred kilobytes. Importing is narrowed by `import.streams` in
+`config.yaml`, because every row costs space in a file meant to grow across a
+whole tier.
+
+The same eleven pulls import to 47.5 MB with all thirteen streams and 1.55 MB
+with `casts` and `resources` alone, a factor of thirty. `wcla prune` drops
+streams the import list no longer wants, and `combatant_info` is never a
+pruning candidate because it feeds `fight_player` rather than `event`.
+
+An analysis that needs a stream which was not imported must not answer over
+missing rows. `wcl_analyser.db.coverage.require` compares what a module
+declares against `import_log` and raises `MissingData` carrying the command to
+run, distinguishing a stream that is cached and merely unimported, where the
+fix is free, from one that was never fetched, where the fix costs points.
+
+`import_log.schema_version` records the schema each blob was imported under. A
+migration that adds a column leaves existing rows null in it, so an unchanged
+hash alone is not enough to skip the work.
 
 ## No raw JSON
 
@@ -117,7 +144,13 @@ cast made under that buff" without a window join.
 
 ## Measured size
 
-Eleven Mythic pulls of one boss, one subject, all 13 streams: 124,815 event
-rows in a 50 MB database. Compacted it is 47.5 MB, of which the four indices
-are 22.6 MB, so they roughly double the size. That is the trade for the query
-speed; drop `event_source_abil` first if it ever needs shrinking.
+Eleven Mythic pulls of one boss, one subject.
+
+| Imported streams | Event rows | Compacted |
+|---|---|---|
+| all 13 | 124,815 | 47.5 MB |
+| `casts`, `resources` | 2,434 | 1.55 MB |
+
+Of the 47.5 MB, the four indices are 22.6 MB, so they roughly double the size.
+That is the trade for the query speed; drop `event_source_abil` first if it
+ever needs shrinking.
