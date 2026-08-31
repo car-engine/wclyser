@@ -29,6 +29,17 @@ focus:
   # that pull's own player details.
   spec: Destruction
 
+# What goes into the database. Fetching stays wide, because a blob costs API
+# points once and then sits on disk at a few hundred kilobytes. Importing is
+# narrowed, because every row costs space in a file meant to grow across a
+# whole tier, and re-importing from cache is free.
+#
+# Leave streams unset to import everything. An analysis that needs a stream
+# absent from here fails with the command to add it, rather than answering
+# over missing rows.
+import:
+  streams: [casts, resources]
+
 fetch:
   encounters_only: true
   event_limit: 10000

@@ -73,6 +73,19 @@ class FetchSettings:
 
 
 @dataclass
+class ImportSettings:
+    """What goes into the database.
+
+    Fetching stays wide because a blob costs API points once and then sits on
+    disk at a few hundred kilobytes. Importing is narrowed because every row in
+    the event table costs space in a file meant to grow across a whole tier,
+    and re-importing from cache is free.
+    """
+
+    streams: list[str] | None = None
+
+
+@dataclass
 class HTTPSettings:
     timeout_s: float = 60.0
     max_attempts: int = 6
@@ -88,8 +101,11 @@ class Config:
     subjects: SubjectRules = field(default_factory=SubjectRules)
     focus: FocusRules = field(default_factory=FocusRules)
     fetch: FetchSettings = field(default_factory=FetchSettings)
+    import_: ImportSettings = field(default_factory=ImportSettings)
     http: HTTPSettings = field(default_factory=HTTPSettings)
     source_path: Path | None = None
+    # Overrides the database location, for a side-by-side rebuild or a test.
+    database: Path | None = None
 
     @property
     def raw_dir(self) -> Path:
@@ -101,7 +117,7 @@ class Config:
 
     @property
     def db_path(self) -> Path:
-        return self.data_dir / "wcl.sqlite"
+        return self.database or self.data_dir / "wcl.sqlite"
 
 
 def find_config_file(explicit: str | Path | None = None) -> Path | None:
@@ -207,6 +223,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
 
     focus = FocusRules(**(raw.get("focus") or {}))
     fetch = FetchSettings(**(raw.get("fetch") or {}))
+    import_ = ImportSettings(**(raw.get("import") or {}))
     http = HTTPSettings(**(raw.get("http") or {}))
 
     return Config(
@@ -216,6 +233,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
         subjects=subjects,
         focus=focus,
         fetch=fetch,
+        import_=import_,
         http=http,
         source_path=path,
     )

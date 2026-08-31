@@ -1,8 +1,9 @@
 """Command line entry point.
 
-Only the client and fetch layers exist so far, so the commands here are the
-ones that read the API: ``fights``, ``players``, ``budget`` and ``fetch``.
-``import``, ``analyse``, ``report`` and ``watch`` arrive with the layers above.
+``budget``, ``fights``, ``players`` and ``fetch`` read the API. ``import``,
+``coverage`` and ``stats`` read only the cache and the database, and need no
+credentials. ``analyse``, ``report`` and ``watch`` arrive with the layers
+above.
 """
 
 from __future__ import annotations
@@ -10,13 +11,21 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from .client import GraphQLClient
 from .config import load_config
 from .errors import WCLError
 from .fetch import Fetcher, resolve_streams
 from .fetch.meta import load_offline_meta, select_fights
-from .db import Importer, database_stats, open_database, schema_version
+from .db import (
+    Importer,
+    check as check_coverage,
+    database_stats,
+    open_database,
+    prune_streams,
+    schema_version,
+)
 from .fetch.scopes import BY_KEY, Scope
 
 log = logging.getLogger("wcla")
@@ -25,6 +34,9 @@ log = logging.getLogger("wcla")
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="wcla", description=__doc__)
     parser.add_argument("--config", help="path to config.yaml")
+    parser.add_argument(
+        "--database", help="path to the SQLite file; overrides the one in data_dir"
+    )
     parser.add_argument("-v", "--verbose", action="count", default=0)
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -68,11 +80,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     imp.add_argument("code")
     imp.add_argument("--player", action="append", help="subject, repeatable")
-    imp.add_argument("--stream", action="append", help="stream, repeatable")
+    imp.add_argument(
+        "--stream",
+        action="append",
+        help="stream to import, repeatable; overrides the import block",
+    )
     imp.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
     imp.add_argument("--force", action="store_true", help="re-import unchanged blobs")
     _add_focus_flags(imp)
     imp.set_defaults(func=cmd_import)
+
+    cov = sub.add_parser(
+        "coverage", help="what an analysis needs against what has been imported"
+    )
+    cov.add_argument("code")
+    cov.add_argument("--player", action="append", help="subject, repeatable")
+    cov.add_argument(
+        "--stream", action="append", help="stream the analysis needs, repeatable"
+    )
+    _add_focus_flags(cov)
+    cov.set_defaults(func=cmd_coverage)
+
+    prune = sub.add_parser(
+        "prune", help="drop imported streams outside the configured import list"
+    )
+    prune.add_argument("code", nargs="?")
+    prune.add_argument(
+        "--keep", action="append", help="stream to keep, repeatable; overrides config"
+    )
+    prune.add_argument("--dry-run", action="store_true", help="report without deleting")
+    prune.set_defaults(func=cmd_prune)
 
     stats = sub.add_parser("stats", help="row counts and the imported pulls")
     stats.add_argument("code", nargs="?")
@@ -102,6 +139,13 @@ def _add_focus_flags(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _load(args: argparse.Namespace):
+    config = load_config(args.config)
+    if getattr(args, "database", None):
+        config.database = Path(args.database)
+    return config
+
+
 def _focus(args: argparse.Namespace, config) -> tuple:
     """Command line focus flags, falling back to the configured focus."""
     if getattr(args, "all", False):
@@ -115,7 +159,7 @@ def _focus(args: argparse.Namespace, config) -> tuple:
 
 
 def _context(args: argparse.Namespace) -> tuple:
-    config = load_config(args.config)
+    config = _load(args)
     client = GraphQLClient(config)
     return config, client, Fetcher(client, config)
 
@@ -235,9 +279,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
 
 
 def cmd_import(args: argparse.Namespace) -> int:
-    config = load_config(args.config)
+    config = _load(args)
     meta = load_offline_meta(config.raw_dir, args.code)
-    streams = resolve_streams(args.stream)
+    streams = resolve_streams(args.stream or config.import_.streams)
     subjects = meta.resolve_subjects(config, args.player)
 
     encounter, difficulty, spec = _focus(args, config)
@@ -252,6 +296,7 @@ def cmd_import(args: argparse.Namespace) -> int:
     print(f"{meta.code}  {meta.title or '(untitled)'}  night {meta.raid_night}")
     print(f"database: {config.db_path}  (schema version {schema_version(conn)})")
     print(f"subjects: {', '.join(a.player_key for a in subjects) or '(raid-wide only)'}")
+    print(f"streams:  {', '.join(s.key for s in streams)}")
     print(f"focus:    {config.focus.describe() if not args.all else 'everything'}")
     print(f"pulls:    {len(fights)} of {len(meta.fights)}")
 
@@ -305,8 +350,59 @@ def _filter_cached_spec(config, meta, fights, subjects, spec):
     return kept
 
 
+def cmd_coverage(args: argparse.Namespace) -> int:
+    config = _load(args)
+    meta = load_offline_meta(config.raw_dir, args.code)
+    subjects = meta.resolve_subjects(config, args.player)
+    encounter, difficulty, spec = _focus(args, config)
+    fights = select_fights(meta.fights, encounter, difficulty, None)
+    if spec:
+        fights = _filter_cached_spec(config, meta, fights, subjects, spec)
+
+    required = args.stream or [s.key for s in resolve_streams(config.import_.streams)]
+    conn = open_database(config.db_path, read_only=True)
+    coverage = check_coverage(conn, config, meta, fights, subjects, required)
+    conn.close()
+
+    print(f"{meta.code}  {len(fights)} pulls  streams: {', '.join(required)}")
+    if coverage.complete:
+        print(f"all {coverage.checked} required blobs are imported")
+        return 0
+    print(coverage.message())
+    return 1
+
+
+def cmd_prune(args: argparse.Namespace) -> int:
+    config = _load(args)
+    keep = args.keep or config.import_.streams
+    if not keep:
+        raise WCLError(
+            "nothing to prune against: set import.streams in config.yaml, or pass --keep"
+        )
+    keep = [s.key for s in resolve_streams(keep)]
+    # CombatantInfo feeds fight_player rather than the event table, and is
+    # always wanted, so it is never a pruning candidate.
+    keep = sorted(set(keep) | {"combatant_info"})
+
+    conn = open_database(config.db_path)
+    summary = prune_streams(conn, args.code, keep, dry_run=args.dry_run)
+    verb = "would remove" if args.dry_run else "removed"
+    print(f"keeping: {', '.join(keep)}")
+    if not summary.removed_rows and not summary.removed_blobs:
+        print("nothing to prune")
+    else:
+        for stream, rows in sorted(summary.per_stream.items(), key=lambda kv: -kv[1]):
+            print(f"  {stream:<20} {rows:>8} rows")
+        print(
+            f"{verb} {summary.removed_rows} event rows across "
+            f"{summary.removed_blobs} imported blobs"
+        )
+    conn.close()
+    return 0
+
+
 def cmd_stats(args: argparse.Namespace) -> int:
-    config = load_config(args.config)
+    config = _load(args)
     conn = open_database(config.db_path, read_only=True)
     print(f"database: {config.db_path}  (schema version {schema_version(conn)})")
     for table, count in database_stats(conn, args.code).items():
