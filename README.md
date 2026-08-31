@@ -185,6 +185,19 @@ wcly report <code>                        # one page per subject, into data/repo
 wcly report <code> --player X --out p.html   # one named file
 ```
 
+`--player`, `--module`, `--stream`, `--fight` and `--keep` all take a value
+per flag or several separated by commas, and the two forms mix:
+
+```bash
+wcly report <code> --player Nevaritius,Bigdaddylock
+wcly report <code> --fight 22,23 --fight 24
+```
+
+`--fight` takes report fight ids rather than pull numbers, because that is what
+the API and the Warcraft Logs URLs use. `wcly fights <code>` lists them. A
+fight id outside the encounter and difficulty in effect is filtered out, so
+`--fight` narrows the focus rather than replacing it.
+
 Built so far: `havoc`, which lists what was cast inside each Havoc window, what
 was cleared out of the way in the seconds before it opened, and the shard level
 it opened with. That last figure is extrapolated: the shard pool is only ever

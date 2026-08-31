@@ -30,6 +30,17 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, comma-separated flags
+
+Every repeatable flag now also accepts comma-separated values, so
+`--player A,B` and `--player A --player B` are the same, and the two forms mix.
+Conversion happens in the argparse action rather than through `type`, which
+would run against the whole comma-separated string and reject it.
+
+`--fight` keeps taking report fight ids. Pull numbers were considered and left
+alone: fight ids are what the API and the Warcraft Logs URLs use, and the page
+prints both.
+
 ## 2026-09-01, report layer
 
 `wcly report` writes the Havoc page from the database. One self-contained HTML

@@ -19,6 +19,10 @@ wcly prune <report_code>             # drop streams the import list no longer wa
 wcly budget                          # hourly API point budget
 ```
 
+`--player`, `--module`, `--stream`, `--fight` and `--keep` take one value per
+flag or several separated by commas. `--fight` takes report fight ids, not pull
+numbers.
+
 Run the offline checks after any change to the fetch layer. They cover
 pagination, the cache-first rule, the finality rule and subject resolution.
 
