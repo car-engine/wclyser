@@ -296,6 +296,9 @@ def main() -> int:
         print("report page")
         _check_report(tmp)
 
+        print("command line flags")
+        _check_cli_flags()
+
         print("\nall offline checks passed")
         return 0
     finally:
@@ -698,6 +701,63 @@ def _check_report(tmp: Path) -> None:
 
     out = rp.write(tmp / "reports" / name, html)
     check("the page is written to disk", out.is_file() and out.stat().st_size > 1000)
+
+
+def _check_cli_flags() -> None:
+    """Repeatable flags accept comma-separated values as well."""
+    from wclyser.cli import build_parser
+
+    p = build_parser()
+
+    def parsed(argv):
+        return p.parse_args(argv)
+
+    a = parsed(["report", "C", "--player", "A,B"])
+    check("a comma-separated flag splits", a.player == ["A", "B"], str(a.player))
+
+    a = parsed(["report", "C", "--player", "A", "--player", "B"])
+    check("repeating the flag still works", a.player == ["A", "B"], str(a.player))
+
+    a = parsed(["report", "C", "--player", "A,B", "--player", "C"])
+    check("the two forms mix", a.player == ["A", "B", "C"], str(a.player))
+
+    a = parsed(["report", "C", "--player", " A , B "])
+    check("surrounding spaces are trimmed", a.player == ["A", "B"], str(a.player))
+
+    a = parsed(["report", "C", "--player", "A,,B,"])
+    check("empty entries are dropped", a.player == ["A", "B"], str(a.player))
+
+    a = parsed(["report", "C", "--fight", "22,23"])
+    check("fight ids come back as integers", a.fight == [22, 23], str(a.fight))
+
+    a = parsed(["report", "C", "--fight", "22", "--fight", "23,24"])
+    check("mixed forms convert too", a.fight == [22, 23, 24], str(a.fight))
+
+    a = parsed(["fetch", "C", "--stream", "casts,resources"])
+    check("streams split", a.stream == ["casts", "resources"], str(a.stream))
+
+    a = parsed(["prune", "C", "--keep", "casts,resources"])
+    check("kept streams split", a.keep == ["casts", "resources"], str(a.keep))
+
+    a = parsed(["analyse", "C", "--module", "havoc,other"])
+    check("modules split", a.module == ["havoc", "other"], str(a.module))
+
+    a = parsed(["report", "C"])
+    check("an absent flag stays None", a.player is None and a.fight is None)
+
+    # A fight id that is not a number names the flag and stops the run.
+    import contextlib
+    import io
+
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            parsed(["report", "C", "--fight", "22,abc"])
+        check("a non-numeric fight id is refused", False)
+    except SystemExit:
+        message = err.getvalue()
+        check("a non-numeric fight id is refused",
+              "--fight" in message and "abc" in message, message.strip()[-60:])
 
 
 if __name__ == "__main__":
