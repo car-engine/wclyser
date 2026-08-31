@@ -758,6 +758,8 @@ def _check_config_discovery(tmp: Path) -> None:
         bare = load_config()
         check("a config.yaml in the working directory is ignored",
               bare.subjects.default == [] and bare.focus.difficulty is None)
+        check("a relative data_dir follows the working directory",
+              bare.data_dir == (tmp / "data").resolve(), str(bare.data_dir))
         check("and it names no module", bare.analysis.modules is None)
 
         used = load_config(named)
@@ -869,6 +871,44 @@ def _check_cli_flags() -> None:
         check("neither one is an error", False)
     except WCLError as exc:
         check("neither one is an error", "--module" in str(exc), str(exc)[:60])
+
+    # What reaches the database: the flag, then a config list, then whatever
+    # the selected modules read, then everything.
+    from wclyser.cli import _import_streams
+    from wclyser.config import ImportSettings
+
+    def cfg(modules=None, streams=None):
+        return SimpleNamespace(
+            analysis=AnalysisSettings(modules=modules),
+            import_=ImportSettings(streams=streams),
+        )
+
+    got, why = _import_streams(
+        SimpleNamespace(stream=["buffs"], module=["havoc"]), cfg(streams=["deaths"])
+    )
+    check("--stream wins over everything",
+          [x.key for x in got] == ["buffs"] and why == "--stream", why)
+
+    got, why = _import_streams(
+        SimpleNamespace(stream=None, module=["havoc"]), cfg(streams=["deaths"])
+    )
+    check("a config stream list beats the module",
+          [x.key for x in got] == ["deaths"], why)
+
+    got, why = _import_streams(
+        SimpleNamespace(stream=None, module=["havoc"]), cfg()
+    )
+    check("a module with no stream list imports only what it reads",
+          [x.key for x in got] == ["casts"], f"{[x.key for x in got]} ({why})")
+    check("and says so", "havoc" in why, why)
+
+    got, why = _import_streams(
+        SimpleNamespace(stream=None, module=None), cfg(modules=["havoc"])
+    )
+    check("a config module counts too", [x.key for x in got] == ["casts"], why)
+
+    got, why = _import_streams(SimpleNamespace(stream=None, module=None), cfg())
+    check("with nothing to go on it imports everything", len(got) > 5, str(len(got)))
 
     # report is a placeholder for the cross-night document and takes no module.
     a = parsed(["report", "C"])
