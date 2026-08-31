@@ -456,6 +456,31 @@ def _check_coverage(tmp: Path, config, meta, alpha, fetcher) -> None:
     cov = coverage_check(conn, config, meta, [fight], [alpha], ["buffs"])
     check("a pruned stream reads as a gap again", not cov.complete)
 
+    # ensure closes a gap when the blob is cached, and refuses when it is not.
+    from wclyser.db import ensure as coverage_ensure
+
+    cov, summary = coverage_ensure(conn, config, meta, [fight], [alpha], ["buffs"])
+    check("ensure imports a cached blob", cov.complete)
+    check("and says what it imported", summary is not None and summary.rows > 0,
+          str(summary.rows if summary else None))
+
+    cov, summary = coverage_ensure(conn, config, meta, [fight], [alpha], ["buffs"])
+    check("ensure does nothing when there is no gap", cov.complete and summary is None)
+
+    prune_streams(conn, meta.code, ["casts"])
+    try:
+        coverage_ensure(conn, config, meta, [fight], [alpha], ["buffs"],
+                        allow_import=False)
+        check("ensure refuses when importing is not allowed", False)
+    except MissingData:
+        check("ensure refuses when importing is not allowed", True)
+
+    try:
+        coverage_ensure(conn, config, meta, [fight], [alpha], ["deaths"])
+        check("ensure refuses a gap that needs fetching", False)
+    except MissingData as exc:
+        check("ensure refuses a gap that needs fetching", "wcly fetch" in str(exc))
+
     conn.close()
 
 def _check_havoc() -> None:
@@ -755,6 +780,13 @@ def _check_cli_flags() -> None:
 
     a = parsed(["analyse", "C", "--module", "havoc", "--html", "out.html"])
     check("--html takes a path", a.html == "out.html", repr(a.html))
+
+    a = parsed(["analyse", "C", "--module", "havoc"])
+    check("importing cached blobs is the default", a.no_import is False)
+
+    a = parsed(["sync", "C", "--player", "A,B", "--fight", "1,2"])
+    check("sync takes the same comma-separated flags",
+          a.player == ["A", "B"] and a.fight == [1, 2])
 
     # A fight id that is not a number names the flag and stops the run.
     err = io.StringIO()
