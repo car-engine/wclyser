@@ -30,6 +30,38 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, later still
+
+The shard level at a window opening is now extrapolated rather than read.
+
+The reading at the first shard-spending cast inside the window is an upper
+bound, because only generation happens between the Havoc cast and it. The
+generation in that gap is now subtracted, so the reported figure is the level
+at the opening.
+
+Rates live in the profile, in shards per cast: Conflagrate 0.5, Soul Fire 1.0,
+Incinerate 0.2, and a passive Immolate or Wither tick of 0.1 every 1.5s.
+Everything inside the window counts twice, because Havoc duplicates it.
+
+Worked example, pull 1 window 2. Havoc at 36.45s, first spend a Chaos Bolt
+4.19s later reading 3.5 shards, one Conflagrate in between. Generation is
+0.5 x 2 for the Conflagrate plus 4.19/1.5 x 0.1 x 2 for the passive ticks,
+1.56 in total, so the opening level was 1.94. The previous spend left him at
+0.4, and the extrapolation sits above that, as it must.
+
+Two approximations, both under-counting generation, so the figure reads
+slightly high. Critical strikes generate extra shards and are ignored. The
+passive tick is assumed to be running for the whole gap, which cannot be
+checked without a debuff stream the import does not keep.
+
+The check on the model is the lower bound: an extrapolation landing below the
+level seen at the previous spend means generation was over-counted. One of 54
+windows does, and it is reported.
+
+Over the eleven Mythic pulls the entry level is a mean 4.0 of 5, median 4.6,
+with 35 of 54 windows opening at 4.0 or more and 4 below 2.5. Before
+subtracting generation the same readings averaged 4.7.
+
 ## 2026-09-01, later
 
 Two additions to the Havoc module.

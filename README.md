@@ -162,7 +162,12 @@ holds the spell lists, and the profile is chosen per pull, because a player who
 respecs between bosses has one specialisation for some pulls and another for
 the rest.
 
-Built so far: `havoc`, which lists what was cast inside each Havoc window.
+Built so far: `havoc`, which lists what was cast inside each Havoc window, what
+was cleared out of the way in the seconds before it opened, and the shard level
+it opened with. That last figure is extrapolated: the shard pool is only ever
+reported on a cast that spends shards, so the reading at the first spend inside
+the window has the generation since the opening subtracted from it, at rates
+the profile supplies.
 
 ## Measured cost
 
