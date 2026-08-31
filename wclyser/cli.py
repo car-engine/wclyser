@@ -1,9 +1,12 @@
 """Command line entry point.
 
-``budget``, ``fights``, ``players`` and ``fetch`` read the API. ``import``,
-``coverage`` and ``stats`` read only the cache and the database, and need no
-credentials. ``analyse``, ``report`` and ``watch`` arrive with the layers
-above.
+``budget``, ``fights``, ``players``, ``fetch`` and ``sync`` reach the API.
+``import``, ``coverage``, ``prune``, ``stats`` and ``analyse`` read only the
+cache and the database, and need no credentials.
+
+``analyse`` imports a blob that is cached but not yet in the database, because
+that costs nothing. It never fetches, so no command that analyses can spend
+API points. ``report`` and ``watch`` arrive later.
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ from .db import (
 )
 from .fetch.scopes import BY_KEY, Scope
 from .analysis import REGISTRY as MODULES, Ctx, resolve as resolve_modules, store_metrics
-from .db.coverage import require as require_coverage
+from .db.coverage import ensure as ensure_coverage
 from . import report as report_html
 
 log = logging.getLogger("wcly")
@@ -183,6 +186,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-store", action="store_true", help="print without writing metrics"
     )
     ana.add_argument(
+        "--no-import",
+        action="store_true",
+        help="fail on missing rows instead of importing blobs already cached",
+    )
+    ana.add_argument(
         "--html",
         nargs="?",
         const="",
@@ -193,6 +201,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_focus_flags(ana)
     ana.set_defaults(func=cmd_analyse)
+
+    syn = sub.add_parser(
+        "sync", help="fetch a report and import it, in one step"
+    )
+    syn.add_argument("code")
+    syn.add_argument(
+        "--player", action=CommaList, help="subject; repeat or comma-separate"
+    )
+    syn.add_argument(
+        "--fight", action=CommaList, item_type=int,
+        help="fight id; repeat or comma-separate",
+    )
+    syn.add_argument("--force", action="store_true", help="ignore cached blobs")
+    syn.add_argument(
+        "--finished-only", action="store_true",
+        help="skip a pull that may still be in progress",
+    )
+    _add_focus_flags(syn)
+    syn.set_defaults(func=cmd_sync)
 
     rep = sub.add_parser(
         "report",
@@ -230,6 +257,18 @@ def _load(args: argparse.Namespace):
     if getattr(args, "database", None):
         config.database = Path(args.database)
     return config
+
+
+def _describe_focus(encounter, difficulty, spec) -> str:
+    """The focus actually in effect, which the flags may have overridden."""
+    parts = [
+        f"{label} {value}"
+        for label, value in (
+            ("encounter", encounter), ("difficulty", difficulty), ("spec", spec)
+        )
+        if value is not None
+    ]
+    return ", ".join(parts) or "everything"
 
 
 def _focus(args: argparse.Namespace, config) -> tuple:
@@ -281,7 +320,7 @@ def cmd_fights(args: argparse.Namespace) -> int:
         print(f" {mark} {fight.describe()}{final}")
     print(
         f"{len(meta.fights)} fights, {len(meta.players())} players. "
-        f"{len(chosen)} in focus ({config.focus.describe() if not args.all else 'everything'})"
+        f"{len(chosen)} in focus ({_describe_focus(encounter, difficulty, spec)})"
     )
     return 0
 
@@ -323,7 +362,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     print(f"{meta.code}  {meta.title or '(untitled)'}  night {meta.raid_night}")
     print(f"subjects: {', '.join(a.player_key for a in subjects) or '(raid-wide only)'}")
     print(f"streams:  {', '.join(s.key for s in streams)}")
-    print(f"focus:    {config.focus.describe() if not args.all else 'everything'}")
+    print(f"focus:    {_describe_focus(encounter, difficulty, spec)}")
     print(f"pulls:    {len(fights)} of {len(meta.fights)}")
     print(f"budget:   {client.rate_limit(refresh=True)}")
 
@@ -383,7 +422,7 @@ def cmd_import(args: argparse.Namespace) -> int:
     print(f"database: {config.db_path}  (schema version {schema_version(conn)})")
     print(f"subjects: {', '.join(a.player_key for a in subjects) or '(raid-wide only)'}")
     print(f"streams:  {', '.join(s.key for s in streams)}")
-    print(f"focus:    {config.focus.describe() if not args.all else 'everything'}")
+    print(f"focus:    {_describe_focus(encounter, difficulty, spec)}")
     print(f"pulls:    {len(fights)} of {len(meta.fights)}")
 
     importer = Importer(conn, config, meta)
@@ -487,6 +526,64 @@ def cmd_prune(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sync(args: argparse.Namespace) -> int:
+    """Fetch, then import, so the usual sequence is one command.
+
+    Fetching stays wide and importing stays narrow, exactly as the two
+    commands do on their own. This spends API points, which is why it is its
+    own verb rather than something analyse does behind your back.
+    """
+    config, client, fetcher = _context(args)
+    meta = fetcher.report_meta(args.code)
+    subjects = meta.resolve_subjects(config, args.player)
+    streams = resolve_streams(None)
+
+    if not subjects and any(s.scope is Scope.SUBJECT for s in streams):
+        raise WCLError(
+            "no subjects resolved. Pass --player, or set subjects in config.yaml."
+        )
+
+    encounter, difficulty, spec = _focus(args, config)
+    fights = select_fights(meta.fights, encounter, difficulty, args.fight)
+    if spec:
+        fights = fetcher.filter_fights_by_spec(meta, fights, subjects, spec)
+    if not fights:
+        print("the focus matched no pulls in this report")
+        return 0
+
+    print(f"{meta.code}  {meta.title or '(untitled)'}  night {meta.raid_night}")
+    print(f"subjects: {', '.join(a.player_key for a in subjects)}")
+    print(f"focus:    {_describe_focus(encounter, difficulty, spec)}")
+    print(f"pulls:    {len(fights)} of {len(meta.fights)}")
+    print(f"budget:   {client.rate_limit(refresh=True)}")
+
+    print()
+    print("fetching every stream")
+    summary = fetcher.fetch_report(
+        meta, subjects, streams, fights=fights,
+        force=args.force, finished_only=args.finished_only,
+    )
+    print(f"  {summary.events} events across {len(summary.results)} blobs "
+          f"({summary.cached} cached, {summary.fetched} fetched)")
+    for fight_id, reason in summary.skipped_fights:
+        print(f"  fight {fight_id} skipped: {reason}")
+
+    import_streams = resolve_streams(config.import_.streams)
+    print()
+    print(f"importing {', '.join(s.key for s in import_streams)}")
+    conn = open_database(config.db_path)
+    imported = Importer(conn, config, meta).run(fights, subjects, import_streams)
+    print(f"  {imported.rows} event rows, {imported.imported} blobs imported, "
+          f"{imported.skipped} unchanged")
+    if imported.missing:
+        print(f"  {len(imported.missing)} expected blobs are still absent")
+    conn.close()
+
+    print()
+    print(f"budget:   {client.rate_limit(refresh=True)}")
+    return 0
+
+
 def cmd_analyse(args: argparse.Namespace) -> int:
     config = _load(args)
     meta = load_offline_meta(config.raw_dir, args.code)
@@ -520,10 +617,16 @@ def cmd_analyse(args: argparse.Namespace) -> int:
     stored = 0
     written: list[Path] = []
     for module in modules:
-        # Raises with the command to run rather than answering over the gap.
-        require_coverage(
-            conn, config, meta, fights, subjects, sorted(module.requires)
+        # A gap whose blob is cached is closed here, which is free. A gap
+        # needing a fetch raises with the command, so this never reaches the
+        # network.
+        _, imported = ensure_coverage(
+            conn, config, meta, fights, subjects, sorted(module.requires),
+            allow_import=not args.no_import,
         )
+        if imported is not None and imported.rows:
+            print(f"  imported {imported.rows} rows from "
+                  f"{imported.imported} cached blobs for {module.key}")
         results = module.run(ctx)
         for player_key, result in results.items():
             print()
