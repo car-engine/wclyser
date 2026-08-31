@@ -21,6 +21,7 @@ from wcl_analyser.errors import ConfigError  # noqa: E402
 from wcl_analyser.fetch import Fetcher, resolve_streams  # noqa: E402
 from wcl_analyser.fetch.meta import parse_report  # noqa: E402
 from wcl_analyser.fetch.scopes import BY_KEY  # noqa: E402
+from wcl_analyser.db import Importer, open_database  # noqa: E402
 
 REPORT_PAYLOAD = {
     "code": "TEST123",
@@ -99,6 +100,16 @@ REPORT_PAYLOAD = {
                 "icon": "Warlock-Destruction",
                 "server": "Frostmourne",
                 "petOwner": None,
+            },
+            {
+                "id": 40,
+                "gameID": 4,
+                "name": "Wild Imp",
+                "type": "Pet",
+                "subType": "Warlock",
+                "icon": "Warlock",
+                "server": None,
+                "petOwner": 5,
             },
             {
                 "id": 31,
@@ -272,11 +283,91 @@ def main() -> int:
               summary.skipped_fights == [(3, "still in progress")],
               str(summary.skipped_fights))
 
+        print("database round trip")
+        _check_database(tmp, config, meta, alpha, fetcher)
+
         print("\nall offline checks passed")
         return 0
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
+
+def _check_database(tmp: Path, config, meta, alpha, fetcher) -> None:
+    """Import a hand-built blob and check what lands in the tables."""
+    casts = BY_KEY["casts"]
+    fight = meta.fights[0]
+    path = fetcher.cache.path(meta.code, fight.id, casts.key, alpha.player_key)
+    fetcher.cache.write(
+        path,
+        {
+            "report_code": meta.code,
+            "fight_id": fight.id,
+            "stream": casts.key,
+            "data_type": casts.data_type,
+            "subject": alpha.player_key,
+            "stream_fingerprint": casts.fingerprint,
+            "events": [
+                # The player casts.
+                {"timestamp": 2000, "type": "cast", "sourceID": 5, "targetID": 31,
+                 "abilityGameID": 116858, "buffs": "1.2.3."},
+                # A pet casts, and must resolve to its owner.
+                {"timestamp": 3000, "type": "cast", "sourceID": 40, "targetID": 31,
+                 "abilityGameID": 104318},
+                # A soul shard spend while carrying mana: two different
+                # resources that must not share columns.
+                {"timestamp": 4000, "type": "resourcechange", "sourceID": 5,
+                 "targetID": 5, "abilityGameID": 116858,
+                 "resourceChange": 2, "resourceChangeType": 7,
+                 "maxResourceAmount": 50,
+                 "classResources": [{"amount": 242263, "max": 250000, "type": 0}]},
+            ],
+        },
+    )
+
+    conn = open_database(tmp / "check.sqlite")
+    summary = Importer(conn, config, meta).run([fight], [alpha], [casts])
+    check("three event rows imported", summary.rows == 3, str(summary.rows))
+
+    row = conn.execute(
+        "SELECT source_key, source_is_pet FROM event WHERE source_id = 40"
+    ).fetchone()
+    check("pet resolves to its owner", row["source_key"] == alpha.player_key,
+          str(row["source_key"]))
+    check("pet is flagged as one", row["source_is_pet"] == 1)
+
+    row = conn.execute(
+        "SELECT * FROM event WHERE event_type = 'resourcechange'"
+    ).fetchone()
+    check("resource change keeps its own type", row["resource_type"] == 7)
+    check("resource change keeps its own maximum", row["resource_max"] == 50)
+    check("the actor's pool is a separate resource", row["pool_type"] == 0)
+    check("the actor's pool keeps its own amount", row["pool_amount"] == 242263)
+
+    row = conn.execute(
+        "SELECT t_rel_ms, buffs_active FROM event "
+        "WHERE ability_id = 116858 AND event_type = 'cast'"
+    ).fetchone()
+    check("t_rel_ms is relative to the pull",
+          row["t_rel_ms"] == 2000 - fight.start_ms, str(row["t_rel_ms"]))
+    check("active buffs are carried", row["buffs_active"] == "1.2.3.")
+
+    again = Importer(conn, config, meta).run([fight], [alpha], [casts])
+    check("re-import changes nothing", again.rows == 0 and again.skipped == 1,
+          f"rows={again.rows} skipped={again.skipped}")
+    total = conn.execute("SELECT COUNT(*) n FROM event").fetchone()["n"]
+    check("re-import does not duplicate rows", total == 3, str(total))
+
+    forced = Importer(conn, config, meta).run([fight], [alpha], [casts], force=True)
+    total = conn.execute("SELECT COUNT(*) n FROM event").fetchone()["n"]
+    check("forced re-import replaces rather than appends",
+          forced.rows == 3 and total == 3, str(total))
+
+    row = conn.execute(
+        "SELECT boss_name, difficulty_name, pull_in_report, pull_seq FROM v_pull LIMIT 1"
+    ).fetchone()
+    check("the pull view resolves", row["difficulty_name"] == "Mythic")
+
+    conn.close()
 
 if __name__ == "__main__":
     raise SystemExit(main())
