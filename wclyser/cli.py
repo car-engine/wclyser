@@ -166,6 +166,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--keep", action=CommaList,
         help="stream to keep; repeat or comma-separate. Overrides config"
     )
+    prune.add_argument(
+        "--module", action=CommaList,
+        help="keep only what these modules read, when no --keep is given",
+    )
     prune.add_argument("--dry-run", action="store_true", help="report without deleting")
     prune.set_defaults(func=cmd_prune)
 
@@ -204,8 +208,8 @@ def build_parser() -> argparse.ArgumentParser:
         const="",
         metavar="PATH",
         help="also write a self-contained HTML page. A path ending in .html "
-             "names one file, anything else is a directory. Bare --html uses "
-             "<data_dir>/reports",
+             "names one file, anything else is a directory to build the usual "
+             "structure under. Bare --html uses ./reports",
     )
     _add_focus_flags(ana)
     ana.set_defaults(func=cmd_analyse)
@@ -547,16 +551,13 @@ def cmd_coverage(args: argparse.Namespace) -> int:
 
 def cmd_prune(args: argparse.Namespace) -> int:
     config = _load(args)
-    keep = args.keep or config.import_.streams
-    if not keep:
-        raise WCLError(
-            "nothing to prune against: pass --keep, or name a config with --config "
-            "that sets import.streams"
-        )
-    keep = [s.key for s in resolve_streams(keep)]
+    streams, why = _import_streams(
+        argparse.Namespace(stream=args.keep, module=args.module), config
+    )
     # CombatantInfo feeds fight_player rather than the event table, and is
     # always wanted, so it is never a pruning candidate.
-    keep = sorted(set(keep) | {"combatant_info"})
+    keep = sorted({s.key for s in streams} | {"combatant_info"})
+    print(f"basis: {why}")
 
     conn = open_database(config.db_path)
     summary = prune_streams(conn, args.code, keep, dry_run=args.dry_run)
@@ -643,7 +644,7 @@ def cmd_analyse(args: argparse.Namespace) -> int:
 
     pages_to = None
     if args.html is not None:
-        pages_to = Path(args.html) if args.html else config.data_dir / "reports"
+        pages_to = Path(args.html) if args.html else config.reports_dir
     single_file = pages_to is not None and pages_to.suffix.lower() == ".html"
     if single_file and (len(subjects) > 1 or len(modules) > 1):
         raise WCLError(
@@ -696,8 +697,8 @@ def cmd_analyse(args: argparse.Namespace) -> int:
             if not result.payload:
                 print(f"  no data to render for {player_key}")
                 continue
-            path = pages_to if single_file else pages_to / report_html.filename(
-                meta.code, player_key, module.key
+            path = pages_to if single_file else report_html.destination(
+                pages_to, meta.raid_night, meta.code, player_key, module.key
             )
             report_html.write(
                 path,
