@@ -322,6 +322,94 @@ def _build_windows(
     return windows
 
 
+def build_payload(
+    meta,
+    subject,
+    fights,
+    windows: list[Window],
+    priorities: Priorities,
+    havoc_name: str,
+    window_s: float,
+    lead_s: float,
+    specs: list[str],
+) -> dict:
+    """The structured form of the result, for the report page and CSV export.
+
+    Times are carried twice: relative to the pull for drawing, and relative to
+    the report for linking, because Warcraft Logs URLs take the report base.
+    """
+    by_id = {f.id: f for f in fights}
+    used = sorted({w.fight_id for w in windows})
+
+    def cast(c: Cast, window: Window, lead: bool) -> dict:
+        category, rank = priorities.classify(c.ability)
+        return {
+            "t": round((c.t_ms - window.start_ms) / 1000, 2),
+            "n": c.ability,
+            "c": category,
+            "r": rank,
+            "lead": lead,
+        }
+
+    pulls = []
+    for fight_id in used:
+        f = by_id[fight_id]
+        pulls.append({
+            "pull": f.pull_number,
+            "fight_id": f.id,
+            "outcome": f.outcome,
+            "duration_s": round(f.duration_ms / 1000, 1),
+            "end_percent": f.fight_percentage,
+            "fight_start_ms": f.start_ms,
+            "fight_end_ms": f.end_ms,
+        })
+
+    rows = []
+    for w in windows:
+        base = by_id[w.fight_id].start_ms
+        s = w.shards
+        rows.append({
+            "pull": w.pull_number,
+            "idx": w.index,
+            "fight_id": w.fight_id,
+            "start_s": round(w.start_ms / 1000, 1),
+            "len_s": round(w.length_s, 1),
+            "abs_start_ms": base + w.start_ms,
+            "abs_end_ms": base + w.end_ms,
+            "abs_lead_ms": base + w.lead_start_ms,
+            "entry": None if s.entry is None else round(s.entry, 2),
+            "reading": s.reading,
+            "delay_s": None if s.delay_ms is None else round(s.delay_ms / 1000, 2),
+            "cap": s.cap,
+            "casts": [cast(c, w, False) for c in w.casts]
+                     + [cast(c, w, True) for c in w.lead_casts],
+        })
+
+    encounters = sorted({by_id[i].name for i in used})
+    difficulties = sorted({by_id[i].difficulty_name for i in used})
+    name = subject.name
+
+    return {
+        "title": f"Havoc windows · {name} · {meta.raid_night}",
+        "report": meta.code,
+        "night": meta.raid_night,
+        "zone": meta.zone_name,
+        "player": subject.player_key,
+        "source_id": subject.id,
+        "player_class": subject.player_class,
+        "spec": "/".join(specs) if specs else (subject.spec or ""),
+        "encounter": ", ".join(encounters),
+        "difficulty": ", ".join(difficulties),
+        "window_s": window_s,
+        "lead_in_s": lead_s,
+        "ability": havoc_name,
+        "good": list(priorities.good),
+        "bad": list(priorities.bad),
+        "pulls": pulls,
+        "windows": rows,
+    }
+
+
 @analysis("havoc", title="Havoc windows", requires={"casts"})
 def run(ctx: Ctx) -> dict[str, Result]:
     results: dict[str, Result] = {}
@@ -335,6 +423,8 @@ def run(ctx: Ctx) -> dict[str, Result]:
         window_s = 20.0
         lead_s = 5.0
         generation = Generation()
+        specs: list[str] = []
+        used_fights = []
         skipped: list[str] = []
 
         usable = [
@@ -360,6 +450,9 @@ def run(ctx: Ctx) -> dict[str, Result]:
             priorities = Priorities(havoc)
             generation = Generation.from_profile(havoc)
 
+            if spec and spec not in specs:
+                specs.append(spec)
+            used_fights.append(fight)
             analysed_ms += fight.duration_ms
             windows.extend(
                 _build_windows(
@@ -384,6 +477,10 @@ def run(ctx: Ctx) -> dict[str, Result]:
         _render(
             result, subject, windows, priorities, havoc_name, window_s, lead_s,
             detail, analysed_ms,
+        )
+        result.payload = build_payload(
+            ctx.meta, subject, used_fights, windows, priorities,
+            havoc_name, window_s, lead_s, specs,
         )
         results[subject.player_key] = result
 

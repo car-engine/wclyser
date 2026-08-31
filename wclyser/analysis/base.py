@@ -67,6 +67,9 @@ class Result:
     # Anything the module wants to flag: an unresolved spell name, a pull it
     # could not judge.
     warnings: list[str] = field(default_factory=list)
+    # Structured data for the report layer to render and for CSV export. A
+    # module that has no page template can leave this empty.
+    payload: dict = field(default_factory=dict)
 
 
 @dataclass
