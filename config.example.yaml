@@ -18,6 +18,17 @@ subjects:
     class: Warlock
     spec: Demonology
 
+# The pulls under study. Narrows every fetch. Override per run with
+# --encounter / --difficulty / --spec, or ignore it entirely with --all.
+focus:
+  # Boss name substring, or the numeric encounter id.
+  encounter: Entombed Sentinels
+  # LFR, Normal, Heroic, Mythic, Mythic+, or the raw id.
+  difficulty: Mythic
+  # Keeps only the pulls where a subject played this specialisation, read from
+  # that pull's own player details.
+  spec: Destruction
+
 fetch:
   encounters_only: true
   event_limit: 10000

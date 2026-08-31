@@ -50,6 +50,16 @@ query($code: String!, $killType: KillType!) {
 }
 """
 
+PLAYER_DETAILS = """
+query($code: String!, $fightID: Int!) {
+  reportData {
+    report(code: $code) {
+      playerDetails(fightIDs: [$fightID], includeCombatantInfo: false)
+    }
+  }
+}
+"""
+
 EVENTS = """
 query(
   $code: String!

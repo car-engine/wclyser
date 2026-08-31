@@ -15,6 +15,7 @@ from .client import GraphQLClient
 from .config import load_config
 from .errors import WCLError
 from .fetch import Fetcher, resolve_streams
+from .fetch.meta import select_fights
 from .fetch.scopes import BY_KEY, Scope
 
 log = logging.getLogger("wcla")
@@ -31,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     fights = sub.add_parser("fights", help="list the fights in a report")
     fights.add_argument("code")
+    _add_focus_flags(fights)
     fights.set_defaults(func=cmd_fights)
 
     players = sub.add_parser("players", help="list the players in a report")
@@ -51,6 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"stream to fetch, repeatable. Known: {', '.join(sorted(BY_KEY))}",
     )
     fetch.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
+    _add_focus_flags(fetch)
     fetch.add_argument("--force", action="store_true", help="ignore cached blobs")
     fetch.add_argument(
         "--finished-only",
@@ -63,6 +66,36 @@ def build_parser() -> argparse.ArgumentParser:
     streams.set_defaults(func=cmd_streams)
 
     return parser
+
+
+def _add_focus_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--encounter", help="boss name substring or encounter id; narrows the pulls"
+    )
+    parser.add_argument(
+        "--difficulty", help="LFR, Normal, Heroic, Mythic, Mythic+, or the raw id"
+    )
+    parser.add_argument(
+        "--spec",
+        help="keep only pulls where a subject played this specialisation",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="ignore the focus block in configuration",
+    )
+
+
+def _focus(args: argparse.Namespace, config) -> tuple:
+    """Command line focus flags, falling back to the configured focus."""
+    if getattr(args, "all", False):
+        return None, None, None
+    focus = config.focus
+    return (
+        getattr(args, "encounter", None) or focus.encounter,
+        getattr(args, "difficulty", None) or focus.difficulty,
+        getattr(args, "spec", None) or focus.spec,
+    )
 
 
 def _context(args: argparse.Namespace) -> tuple:
@@ -88,16 +121,22 @@ def cmd_streams(args: argparse.Namespace) -> int:
 
 
 def cmd_fights(args: argparse.Namespace) -> int:
-    _, _, fetcher = _context(args)
+    config, _, fetcher = _context(args)
     meta = fetcher.report_meta(args.code)
+    encounter, difficulty, spec = _focus(args, config)
+    chosen = {f.id for f in select_fights(meta.fights, encounter, difficulty)}
     print(
         f"{meta.code}  {meta.title or '(untitled)'}  {meta.zone_name or ''}  "
         f"night {meta.raid_night}  guild {meta.guild or '-'}"
     )
     for fight in meta.fights:
+        mark = "*" if fight.id in chosen else " "
         final = "" if fetcher.is_final(meta, fight) else "  [in progress]"
-        print(f"  {fight.describe()}{final}")
-    print(f"{len(meta.fights)} fights, {len(meta.players())} players")
+        print(f" {mark} {fight.describe()}{final}")
+    print(
+        f"{len(meta.fights)} fights, {len(meta.players())} players. "
+        f"{len(chosen)} in focus ({config.focus.describe() if not args.all else 'everything'})"
+    )
     return 0
 
 
@@ -130,21 +169,33 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             f"{', '.join(sorted(a.player_key for a in meta.players()))}"
         )
 
+    encounter, difficulty, spec = _focus(args, config)
+    fights = select_fights(meta.fights, encounter, difficulty, args.fight)
+    if spec:
+        fights = fetcher.filter_fights_by_spec(meta, fights, subjects, spec)
+
     print(f"{meta.code}  {meta.title or '(untitled)'}  night {meta.raid_night}")
     print(f"subjects: {', '.join(a.player_key for a in subjects) or '(raid-wide only)'}")
     print(f"streams:  {', '.join(s.key for s in streams)}")
+    print(f"focus:    {config.focus.describe() if not args.all else 'everything'}")
+    print(f"pulls:    {len(fights)} of {len(meta.fights)}")
     print(f"budget:   {client.rate_limit(refresh=True)}")
+
+    if not fights:
+        print()
+        print("nothing to fetch: the focus matched no pulls in this report")
+        return 0
 
     summary = fetcher.fetch_report(
         meta,
         subjects,
         streams,
-        fight_ids=args.fight,
+        fights=fights,
         force=args.force,
         finished_only=args.finished_only,
     )
 
-    for fight in meta.fights:
+    for fight in fights:
         rows = [r for r in summary.results if r.fight_id == fight.id]
         if not rows:
             continue

@@ -20,8 +20,22 @@ from ..client import GraphQLClient
 from ..config import Config
 from ..errors import WCLError
 from .cache import Blob, BlobCache
-from .meta import Actor, Fight, ReportMeta, meta_path, parse_report
-from .queries import EVENTS, GRAPH, REPORT_META, TABLE, document_hash
+from .meta import (
+    Actor,
+    Fight,
+    ReportMeta,
+    iter_player_details,
+    meta_path,
+    parse_report,
+)
+from .queries import (
+    EVENTS,
+    GRAPH,
+    PLAYER_DETAILS,
+    REPORT_META,
+    TABLE,
+    document_hash,
+)
 from .scopes import ENEMY_SUBJECT, RAID_SUBJECT, FilterSide, Scope, Stream
 
 log = logging.getLogger(__name__)
@@ -118,6 +132,79 @@ class Fetcher:
         report_span_ms = meta.end_time_utc - meta.start_time_utc
         margin_ms = self.config.fetch.finality_margin_s * 1000
         return (report_span_ms - fight.end_ms) > margin_ms
+
+    # -- per-fight specialisation ----------------------------------------
+
+    def fight_player_details(
+        self, meta: ReportMeta, fight: Fight, force: bool = False
+    ) -> dict[int, dict]:
+        """Player details for one pull, keyed by actor id.
+
+        Specialisation is a property of the pull: a player who respecs between
+        bosses has one specialisation for some fights and another for the rest.
+        This is the cheap source of that, needing one request per fight and no
+        table of specialisation ids that new specialisations would fall out of.
+        """
+        path = self.cache.path(
+            meta.code, fight.id, "player_details", RAID_SUBJECT, kind="meta"
+        )
+        blob = None if force else self.cache.read(path)
+        if blob is None:
+            self.client.ensure_budget()
+            data = self.client.execute(
+                PLAYER_DETAILS, {"code": meta.code, "fightID": fight.id}
+            )
+            payload = {
+                "report_code": meta.code,
+                "fight_id": fight.id,
+                "kind": "meta",
+                "stream": "player_details",
+                "query_hash": document_hash(PLAYER_DETAILS),
+                "data": data["reportData"]["report"]["playerDetails"],
+            }
+            if self.is_final(meta, fight):
+                blob = self.cache.write(path, payload)
+            else:
+                blob = Blob(path=path, payload={**payload, "content_hash": ""},
+                            from_cache=False)
+        return {
+            entry["id"]: entry
+            for entry in iter_player_details(blob.payload.get("data"))
+            if entry.get("id") is not None
+        }
+
+    def spec_in_fight(
+        self, meta: ReportMeta, fight: Fight, actor: Actor
+    ) -> str | None:
+        """The specialisation a player was in for one pull."""
+        entry = self.fight_player_details(meta, fight).get(actor.id)
+        if not entry:
+            return None
+        specs = entry.get("specs") or []
+        if not specs:
+            return None
+        return max(specs, key=lambda s: s.get("count", 0)).get("spec")
+
+    def filter_fights_by_spec(
+        self,
+        meta: ReportMeta,
+        fights: list[Fight],
+        subjects: list[Actor],
+        spec: str,
+    ) -> list[Fight]:
+        """Keep the pulls where at least one subject played ``spec``."""
+        wanted = spec.strip().lower()
+        kept: list[Fight] = []
+        for fight in fights:
+            present = meta.subjects_in_fight(fight, subjects)
+            if any(
+                (self.spec_in_fight(meta, fight, actor) or "").lower() == wanted
+                for actor in present
+            ):
+                kept.append(fight)
+            else:
+                log.debug("fight %d has no subject playing %s", fight.id, spec)
+        return kept
 
     # -- one stream ------------------------------------------------------
 
@@ -264,15 +351,13 @@ class Fetcher:
         meta: ReportMeta,
         subjects: list[Actor],
         streams: Iterable[Stream],
-        fight_ids: list[int] | None = None,
+        fights: list[Fight] | None = None,
         force: bool = False,
         finished_only: bool = False,
     ) -> FetchSummary:
         streams = list(streams)
         summary = FetchSummary(code=meta.code)
-        for fight in meta.fights:
-            if fight_ids and fight.id not in fight_ids:
-                continue
+        for fight in meta.fights if fights is None else fights:
             if finished_only and not self.is_final(meta, fight):
                 summary.skipped_fights.append((fight.id, "still in progress"))
                 continue

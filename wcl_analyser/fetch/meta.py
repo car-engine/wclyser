@@ -233,6 +233,62 @@ class ReportMeta:
         return [a for a in subjects if a.id in present]
 
 
+DIFFICULTY_IDS = {
+    "lfr": 1,
+    "normal": 3,
+    "heroic": 4,
+    "mythic": 5,
+    "mythic+": 10,
+}
+
+
+def parse_difficulty(value: str | int | None) -> int | None:
+    """Accept either a difficulty name or the raw id WCL uses."""
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    text = value.strip().lower()
+    if text.isdigit():
+        return int(text)
+    if text not in DIFFICULTY_IDS:
+        known = ", ".join(sorted(DIFFICULTY_IDS))
+        raise ConfigError(f"unknown difficulty {value!r}; known names are: {known}")
+    return DIFFICULTY_IDS[text]
+
+
+def select_fights(
+    fights: list[Fight],
+    encounter: str | int | None = None,
+    difficulty: str | int | None = None,
+    fight_ids: list[int] | None = None,
+) -> list[Fight]:
+    """Narrow a fights list by encounter, difficulty and explicit ids.
+
+    ``encounter`` matches the encounter id when it is a number, and otherwise
+    is a case-insensitive substring of the boss name.
+    """
+    selected = list(fights)
+
+    if fight_ids:
+        selected = [f for f in selected if f.id in set(fight_ids)]
+
+    if encounter is not None:
+        text = str(encounter).strip()
+        if text.isdigit():
+            wanted_id = int(text)
+            selected = [f for f in selected if f.encounter_id == wanted_id]
+        else:
+            needle = text.lower()
+            selected = [f for f in selected if needle in f.name.lower()]
+
+    wanted_difficulty = parse_difficulty(difficulty)
+    if wanted_difficulty is not None:
+        selected = [f for f in selected if f.difficulty == wanted_difficulty]
+
+    return selected
+
+
 def number_pulls(fights: list[Fight]) -> None:
     """Number pulls within the report, per encounter and difficulty."""
     counters: dict[tuple[int, int | None], int] = {}
@@ -260,7 +316,7 @@ def parse_report(payload: dict[str, Any], fetched_at: str) -> ReportMeta:
             region=region,
         )
 
-    for detail in _iter_player_details(payload.get("playerDetails")):
+    for detail in iter_player_details(payload.get("playerDetails")):
         actor = actors.get(detail.get("id"))
         if actor is None:
             continue
@@ -315,7 +371,7 @@ def parse_report(payload: dict[str, Any], fetched_at: str) -> ReportMeta:
     )
 
 
-def _iter_player_details(payload: Any) -> Any:
+def iter_player_details(payload: Any) -> Any:
     """Yield each player entry from the ``playerDetails`` JSON scalar.
 
     The payload nests as ``{"data": {"playerDetails": {"tanks": [...], ...}}}``,
