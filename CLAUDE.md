@@ -29,6 +29,12 @@ pagination, the cache-first rule, the finality rule and subject resolution.
 
 ## Rules
 
+**A config file applies only when named.** `--config` is the one way a YAML
+file reaches a run. Nothing is discovered from the working directory or the
+environment, because a setting that narrows the pulls or picks the players
+changes what a command answers, and that must be visible in the command that
+ran. Flags override anything a named config sets.
+
 **Credentials.** Read from the environment, then a gitignored `.env`. Never
 write a credential into a source file, a config file, a test or a commit
 message. `.env` and `wcl_casts_export.py` are both gitignored; keep them that

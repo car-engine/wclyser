@@ -1,5 +1,8 @@
-# Copy to config.yaml and edit. Credentials are NOT read from here; export
-# WCL_CLIENT_ID and WCL_CLIENT_SECRET in the environment instead.
+# A saved analysis run. Nothing here applies unless a command names this
+# file with --config, so no run is quietly shaped by a file on disk.
+#
+# Credentials are NOT read from here. Put them in .env, or export
+# WCL_CLIENT_ID and WCL_CLIENT_SECRET.
 
 data_dir: data
 
@@ -18,8 +21,8 @@ subjects:
     class: Warlock
     spec: Demonology
 
-# The pulls under study. Narrows every fetch. Override per run with
-# --encounter / --difficulty / --spec, or ignore it entirely with --all.
+# The pulls under study. Override per run with --encounter / --difficulty
+# / --spec, or ignore the block entirely with --all.
 focus:
   # Boss name substring, or the numeric encounter id.
   encounter: Entombed Sentinels
@@ -28,6 +31,10 @@ focus:
   # Keeps only the pulls where a subject played this specialisation, read from
   # that pull's own player details.
   spec: Destruction
+
+# Which analysis modules this configuration runs. --module overrides it.
+analysis:
+  modules: [havoc]
 
 # What goes into the database. Fetching stays wide, because a blob costs API
 # points once and then sits on disk at a few hundred kilobytes. Importing is

@@ -30,6 +30,26 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, configuration is explicit
+
+A config file is now read only when a command names it with `--config`. The
+search of `$WCLYSER_CONFIG`, the working directory and `~/.config/wclyser` is
+gone.
+
+This came from a real confusion the same day: the configured focus said
+`difficulty: Heroic`, every command silently applied it, and a Mythic report
+returned nothing with no indication why. A setting that decides which pulls and
+which players a command answers over belongs in the command that ran.
+
+A config now also names the analysis modules, under `analysis.modules`, so one
+file is a whole saved run: subjects, focus, modules and import streams.
+`--module` is no longer required at the parser; it is required unless a named
+config supplies one, and the flag wins when both do.
+
+Defaults without a config: everything in focus, no subjects, no modules, data
+in `./data`, and every stream imported. The first two fail with a message
+naming both ways to supply them.
+
 ## 2026-09-01, sync and free auto-import
 
 `analyse` now closes a coverage gap itself when every missing blob is already

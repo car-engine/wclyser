@@ -18,8 +18,18 @@ precedence over the file when both are present.
 pip install -e .
 ```
 
-Then `cp config.example.yaml config.yaml` and edit. `config.yaml` is
-gitignored, and holds the players and the pulls under study.
+A config file is optional and is read **only when a command names it** with
+`--config`. Nothing is discovered, so a `config.yaml` sitting in the working
+directory has no effect unless it is asked for. Copy `config.example.yaml` to
+start one; it holds the players, the pulls under study, the analysis modules
+and the import stream list, which is to say one saved run.
+
+```bash
+wcly analyse <code> --config nights/entombed-mythic.yaml
+wcly analyse <code> --module havoc --player Nevaritius --difficulty Mythic
+```
+
+Both forms are complete. Flags override anything the config sets.
 
 ## Commands
 
