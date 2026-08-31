@@ -452,9 +452,9 @@ def _check_coverage(tmp: Path, config, meta, alpha, fetcher) -> None:
     conn.close()
 
 def _check_havoc() -> None:
-    """Window construction and spell classification, on hand-built casts."""
+    """Window construction, lead-in and shard reading, on hand-built casts."""
     from wclyser.analysis import REGISTRY, resolve
-    from wclyser.analysis.havoc import Cast, Priorities, _build_windows
+    from wclyser.analysis.havoc import Cast, Priorities, _build_windows, shards_at
     from wclyser.analysis.profiles import available, load_profile
 
     check("the havoc module is registered", "havoc" in REGISTRY)
@@ -466,6 +466,7 @@ def _check_havoc() -> None:
     check("the Destruction profile loads", profile is not None)
     check("it is listed", "warlock_destruction" in available())
     check("its window is 20 seconds", profile["havoc"]["window_s"] == 20)
+    check("its lead-in is 5 seconds", profile["havoc"]["lead_in_s"] == 5)
 
     priorities = Priorities(profile["havoc"])
     check("Soul Fire is the best good spell", priorities.classify("Soul Fire") == ("good", 1))
@@ -476,16 +477,23 @@ def _check_havoc() -> None:
           priorities.classify("Burning Rush") == ("other", None))
     check("matching ignores case", priorities.classify("chaos bolt") == ("good", 3))
 
+    def bolt(t, shards=None, cost=None):
+        """A Chaos Bolt, optionally reporting a shard pool in tenths."""
+        return Cast(t, "Chaos Bolt", 116858, pool_type=7 if shards is not None else 0,
+                    pool_amount=shards, pool_cost=cost, pool_max=50)
+
     # A pull of 100s with two Havoc casts, the second only 5s after the first.
     casts = [
+        Cast(500, "Wither", 445468),          # cleared before the window opens
         Cast(1_000, "Havoc", 80240),
-        Cast(2_000, "Chaos Bolt", 116858),
+        bolt(2_000, shards=50, cost=20),
         Cast(4_000, "Wither", 445468),
         Cast(6_000, "Havoc", 80240),          # cuts the first window short
         Cast(7_000, "Shadowburn", 17877),
-        Cast(95_000, "Incinerate", 29722),    # beyond the second window
+        bolt(95_000, shards=30, cost=20),     # beyond the second window
     ]
-    windows = _build_windows(casts, "Havoc", 20_000, 100_000, fight_id=1, pull_number=1)
+    windows = _build_windows(casts, "Havoc", 20_000, 5_000, 100_000,
+                             fight_id=1, pull_number=1)
     check("one window per Havoc cast", len(windows) == 2, str(len(windows)))
 
     first, second = windows
@@ -502,10 +510,33 @@ def _check_havoc() -> None:
           [c.ability for c in second.casts] == ["Shadowburn"],
           str([c.ability for c in second.casts]))
 
+    # Lead-in.
+    check("the lead-in collects the cast before the window",
+          [c.ability for c in first.lead_casts] == ["Wither"],
+          str([c.ability for c in first.lead_casts]))
+    check("the lead-in never reaches into the previous window",
+          second.lead_start_ms == 6_000, str(second.lead_start_ms))
+    check("so the second window has an empty lead-in", second.lead_casts == [])
+    check("the lead-in excludes the opening Havoc itself",
+          all(c.ability != "Havoc" for c in first.lead_casts))
+
+    # Shard reading: the first shard-spending cast at or after the opening.
+    check("the reading comes from the first shard spend inside",
+          first.shards.reading == 5.0, str(first.shards.reading))
+    check("its delay is measured from the opening",
+          first.shards.delay_ms == 1_000, str(first.shards.delay_ms))
+    check("the cap is read from the pool maximum", first.shards.cap == 5.0)
+    check("the first window has no earlier spend to floor it",
+          first.shards.floor is None)
+    check("the second window floors on the previous spend",
+          second.shards.floor == 3.0, str(second.shards.floor))
+    check("a window with no later spend has no reading",
+          shards_at([Cast(0, "Havoc", 80240)], 0, 0).reading is None)
+
     # A Havoc late in the pull is truncated by the end of the pull.
     late = _build_windows(
         [Cast(90_000, "Havoc", 80240), Cast(95_000, "Chaos Bolt", 116858)],
-        "Havoc", 20_000, 100_000, fight_id=1, pull_number=1,
+        "Havoc", 20_000, 5_000, 100_000, fight_id=1, pull_number=1,
     )
     check("the end of the pull truncates a window", late[0].end_ms == 100_000,
           str(late[0].end_ms))
@@ -515,7 +546,7 @@ def _check_havoc() -> None:
     edge = _build_windows(
         [Cast(0, "Havoc", 80240), Cast(20_000, "Chaos Bolt", 116858),
          Cast(20_001, "Incinerate", 29722)],
-        "Havoc", 20_000, 100_000, fight_id=1, pull_number=1,
+        "Havoc", 20_000, 5_000, 100_000, fight_id=1, pull_number=1,
     )
     check("a cast on the boundary is inside",
           [c.ability for c in edge[0].casts] == ["Chaos Bolt"],
@@ -523,7 +554,7 @@ def _check_havoc() -> None:
 
     check("a pull with no Havoc has no windows",
           _build_windows([Cast(1_000, "Chaos Bolt", 116858)], "Havoc", 20_000,
-                         100_000, fight_id=1, pull_number=1) == [])
+                         5_000, 100_000, fight_id=1, pull_number=1) == [])
 
 if __name__ == "__main__":
     raise SystemExit(main())
