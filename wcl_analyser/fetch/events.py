@@ -36,7 +36,14 @@ from .queries import (
     TABLE,
     document_hash,
 )
-from .scopes import ENEMY_SUBJECT, RAID_SUBJECT, FilterSide, Scope, Stream
+from .scopes import (
+    ENEMY_SUBJECT,
+    RAID_SUBJECT,
+    FilterSide,
+    Scope,
+    Stream,
+    subject_slug,
+)
 
 log = logging.getLogger(__name__)
 
@@ -454,10 +461,4 @@ class Fetcher:
 
 
 def _subject_slug(stream: Stream, subject: Actor | None) -> str:
-    if stream.scope is Scope.SUBJECT:
-        if subject is None:
-            raise ValueError(f"stream {stream.key} needs a subject")
-        return subject.player_key
-    if stream.scope is Scope.ENEMY:
-        return ENEMY_SUBJECT
-    return RAID_SUBJECT
+    return subject_slug(stream, subject.player_key if subject else None)

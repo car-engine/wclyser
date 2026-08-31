@@ -7,6 +7,8 @@ and analysis can run offline.
 
 from __future__ import annotations
 
+import gzip
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -14,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Config
-from ..errors import ConfigError
+from ..errors import ConfigError, WCLError
 
 log = logging.getLogger(__name__)
 
@@ -388,3 +390,16 @@ def iter_player_details(payload: Any) -> Any:
 def meta_path(raw_dir: Path, code: str) -> Path:
     """Where the offline copy of a report's metadata lives."""
     return Path(raw_dir) / code / "report.json.gz"
+
+
+def load_offline_meta(raw_dir: Path, code: str) -> ReportMeta:
+    """Read a report's metadata from the cache, without credentials."""
+    path = meta_path(raw_dir, code)
+    if not path.is_file():
+        raise WCLError(
+            f"no cached metadata for report {code} at {path}. "
+            f"Run 'wcla fetch {code}' first."
+        )
+    with gzip.open(path, "rt", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    return parse_report(payload["data"], payload.get("fetched_at", ""))

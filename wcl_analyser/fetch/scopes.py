@@ -94,6 +94,17 @@ DEFAULT_PLAN: tuple[Stream, ...] = (
 BY_KEY: dict[str, Stream] = {s.key: s for s in DEFAULT_PLAN}
 
 
+def subject_slug(stream: Stream, player_key: str | None) -> str:
+    """The cache and import identity of a stream's subject slot."""
+    if stream.scope is Scope.SUBJECT:
+        if not player_key:
+            raise ValueError(f"stream {stream.key} needs a subject")
+        return player_key
+    if stream.scope is Scope.ENEMY:
+        return ENEMY_SUBJECT
+    return RAID_SUBJECT
+
+
 def resolve_streams(keys: list[str] | None) -> list[Stream]:
     """Select streams by key, defaulting to the whole plan."""
     if not keys:
