@@ -29,6 +29,7 @@ from .db import (
 from .fetch.scopes import BY_KEY, Scope
 from .analysis import Ctx, resolve as resolve_modules, store_metrics
 from .db.coverage import require as require_coverage
+from . import report as report_html
 
 log = logging.getLogger("wcly")
 
@@ -132,6 +133,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_focus_flags(ana)
     ana.set_defaults(func=cmd_analyse)
+
+    rep = sub.add_parser(
+        "report", help="write a self-contained HTML page for a night"
+    )
+    rep.add_argument("code")
+    rep.add_argument("--player", action="append", help="subject, repeatable")
+    rep.add_argument(
+        "--module", action="append",
+        help=f"analysis module, repeatable. Pages exist for: "
+             f"{', '.join(sorted(report_html.TEMPLATES))}",
+    )
+    rep.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
+    rep.add_argument(
+        "--out",
+        help="output file when one page is written, otherwise a directory. "
+             "Defaults to <data_dir>/reports",
+    )
+    _add_focus_flags(rep)
+    rep.set_defaults(func=cmd_report)
 
     streams = sub.add_parser("streams", help="show the fetch plan")
     streams.set_defaults(func=cmd_streams)
@@ -422,19 +442,7 @@ def cmd_prune(args: argparse.Namespace) -> int:
 def cmd_analyse(args: argparse.Namespace) -> int:
     config = _load(args)
     meta = load_offline_meta(config.raw_dir, args.code)
-    subjects = meta.resolve_subjects(config, args.player)
-    if not subjects:
-        raise WCLError(
-            "no subjects resolved. Pass --player, or set subjects in config.yaml."
-        )
-
-    encounter, difficulty, spec = _focus(args, config)
-    fights = select_fights(meta.fights, encounter, difficulty, args.fight)
-    if spec:
-        fights = _filter_cached_spec(config, meta, fights, subjects, spec)
-    if not fights:
-        raise WCLError("the focus matched no pulls in this report")
-
+    subjects, fights = _analysis_scope(args, config, meta)
     modules = resolve_modules(args.module)
     conn = open_database(config.db_path)
 
@@ -472,6 +480,82 @@ def cmd_analyse(args: argparse.Namespace) -> int:
         print()
         print(f"{stored} metrics written")
     conn.close()
+    return 0
+
+
+def _analysis_scope(args, config, meta):
+    """Subjects and pulls for a run, shared by analyse and report."""
+    subjects = meta.resolve_subjects(config, args.player)
+    if not subjects:
+        raise WCLError(
+            "no subjects resolved. Pass --player, or set subjects in config.yaml."
+        )
+    encounter, difficulty, spec = _focus(args, config)
+    fights = select_fights(meta.fights, encounter, difficulty, args.fight)
+    if spec:
+        fights = _filter_cached_spec(config, meta, fights, subjects, spec)
+    if not fights:
+        raise WCLError("the focus matched no pulls in this report")
+    return subjects, fights
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    config = _load(args)
+    meta = load_offline_meta(config.raw_dir, args.code)
+    subjects, fights = _analysis_scope(args, config, meta)
+
+    modules = [m for m in resolve_modules(args.module) if report_html.available(m.key)]
+    if not modules:
+        raise WCLError(
+            "no analysis module with a page template was selected. "
+            f"Pages exist for: {', '.join(sorted(report_html.TEMPLATES))}"
+        )
+
+    out = Path(args.out) if args.out else config.data_dir / "reports"
+    single_file = out.suffix.lower() == ".html"
+
+    conn = open_database(config.db_path)
+    ctx = Ctx(
+        conn=conn, config=config, meta=meta, fights=fights, subjects=subjects,
+        options={"detail": False},
+    )
+
+    print(f"{meta.code}  night {meta.raid_night}  {len(fights)} pulls")
+    print(f"subjects: {', '.join(a.player_key for a in subjects)}")
+    print(f"modules:  {', '.join(m.key for m in modules)}")
+
+    written: list[Path] = []
+    for module in modules:
+        require_coverage(conn, config, meta, fights, subjects, sorted(module.requires))
+        for player_key, result in module.run(ctx).items():
+            if not result.payload:
+                print(f"  {module.key}: no data for {player_key}, skipped")
+                continue
+            page = report_html.render(
+                module.key, result.payload,
+                footer_note=f"wclyser · {meta.code}",
+            )
+            if single_file:
+                if len(subjects) > 1 or len(modules) > 1:
+                    raise WCLError(
+                        "--out names one file but several pages would be written. "
+                        "Give a directory instead."
+                    )
+                path = out
+            else:
+                path = out / report_html.filename(meta.code, player_key, module.key)
+            report_html.write(path, page)
+            written.append(path)
+            windows = len(result.payload.get("windows", []))
+            print(f"  {path}  ({windows} windows, {path.stat().st_size // 1024} KB)")
+
+    conn.close()
+    if not written:
+        print("nothing written")
+        return 1
+    print()
+    print(f"{len(written)} page(s) written. Open one in a browser, or send it on; "
+          f"it needs nothing else installed.")
     return 0
 
 
