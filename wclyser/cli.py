@@ -182,31 +182,23 @@ def build_parser() -> argparse.ArgumentParser:
     ana.add_argument(
         "--no-store", action="store_true", help="print without writing metrics"
     )
+    ana.add_argument(
+        "--html",
+        nargs="?",
+        const="",
+        metavar="PATH",
+        help="also write a self-contained HTML page. A path ending in .html "
+             "names one file, anything else is a directory. Bare --html uses "
+             "<data_dir>/reports",
+    )
     _add_focus_flags(ana)
     ana.set_defaults(func=cmd_analyse)
 
     rep = sub.add_parser(
-        "report", help="write a self-contained HTML page for a night"
+        "report",
+        help="reserved for the cross-night trend document; not built yet",
     )
-    rep.add_argument("code")
-    rep.add_argument(
-        "--player", action=CommaList, help="subject; repeat or comma-separate"
-    )
-    rep.add_argument(
-        "--module", action=CommaList, required=True,
-        help=f"analysis module to render; repeat or comma-separate. "
-             f"Pages exist for: {', '.join(sorted(report_html.TEMPLATES))}",
-    )
-    rep.add_argument(
-        "--fight", action=CommaList, item_type=int,
-        help="fight id; repeat or comma-separate",
-    )
-    rep.add_argument(
-        "--out",
-        help="output file when one page is written, otherwise a directory. "
-             "Defaults to <data_dir>/reports",
-    )
-    _add_focus_flags(rep)
+    rep.add_argument("code", nargs="?")
     rep.set_defaults(func=cmd_report)
 
     streams = sub.add_parser("streams", help="show the fetch plan")
@@ -502,6 +494,16 @@ def cmd_analyse(args: argparse.Namespace) -> int:
     modules = resolve_modules(args.module)
     conn = open_database(config.db_path)
 
+    pages_to = None
+    if args.html is not None:
+        pages_to = Path(args.html) if args.html else config.data_dir / "reports"
+    single_file = pages_to is not None and pages_to.suffix.lower() == ".html"
+    if single_file and (len(subjects) > 1 or len(modules) > 1):
+        raise WCLError(
+            "--html names one file but several pages would be written. "
+            "Give a directory instead."
+        )
+
     print(f"{meta.code}  night {meta.raid_night}  {len(fights)} pulls")
     print(f"subjects: {', '.join(a.player_key for a in subjects)}")
     print(f"modules:  {', '.join(m.key for m in modules)}")
@@ -516,6 +518,7 @@ def cmd_analyse(args: argparse.Namespace) -> int:
     )
 
     stored = 0
+    written: list[Path] = []
     for module in modules:
         # Raises with the command to run rather than answering over the gap.
         require_coverage(
@@ -532,9 +535,32 @@ def cmd_analyse(args: argparse.Namespace) -> int:
             if not args.no_store:
                 stored += store_metrics(conn, meta.code, player_key, result)
 
+            if pages_to is None:
+                continue
+            if not report_html.available(module.key):
+                print(f"  no page template for {module.key}; terminal output only")
+                continue
+            if not result.payload:
+                print(f"  no data to render for {player_key}")
+                continue
+            path = pages_to if single_file else pages_to / report_html.filename(
+                meta.code, player_key, module.key
+            )
+            report_html.write(
+                path,
+                report_html.render(
+                    module.key, result.payload,
+                    footer_note=f"wclyser · {meta.code}",
+                ),
+            )
+            written.append(path)
+            print(f"  page: {path}  ({path.stat().st_size // 1024} KB)")
+
+    print()
     if stored:
-        print()
         print(f"{stored} metrics written")
+    if written:
+        print(f"{len(written)} page(s) written; each opens on its own.")
     conn.close()
     return 0
 
@@ -556,65 +582,20 @@ def _analysis_scope(args, config, meta):
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    config = _load(args)
-    meta = load_offline_meta(config.raw_dir, args.code)
-    subjects, fights = _analysis_scope(args, config, meta)
+    """Reserved for the document that compares a night against stored history.
 
-    modules = resolve_modules(args.module)
-    without = [m.key for m in modules if not report_html.available(m.key)]
-    if without:
-        raise WCLError(
-            f"no page template for {', '.join(without)}. "
-            f"Pages exist for: {', '.join(sorted(report_html.TEMPLATES))}. "
-            f"Run 'wcly analyse' for a module with no page."
-        )
-
-    out = Path(args.out) if args.out else config.data_dir / "reports"
-    single_file = out.suffix.lower() == ".html"
-
-    conn = open_database(config.db_path)
-    ctx = Ctx(
-        conn=conn, config=config, meta=meta, fights=fights, subjects=subjects,
-        options={"detail": False},
-    )
-
-    print(f"{meta.code}  night {meta.raid_night}  {len(fights)} pulls")
-    print(f"subjects: {', '.join(a.player_key for a in subjects)}")
-    print(f"modules:  {', '.join(m.key for m in modules)}")
-
-    written: list[Path] = []
-    for module in modules:
-        require_coverage(conn, config, meta, fights, subjects, sorted(module.requires))
-        for player_key, result in module.run(ctx).items():
-            if not result.payload:
-                print(f"  {module.key}: no data for {player_key}, skipped")
-                continue
-            page = report_html.render(
-                module.key, result.payload,
-                footer_note=f"wclyser · {meta.code}",
-            )
-            if single_file:
-                if len(subjects) > 1 or len(modules) > 1:
-                    raise WCLError(
-                        "--out names one file but several pages would be written. "
-                        "Give a directory instead."
-                    )
-                path = out
-            else:
-                path = out / report_html.filename(meta.code, player_key, module.key)
-            report_html.write(path, page)
-            written.append(path)
-            windows = len(result.payload.get("windows", []))
-            print(f"  {path}  ({windows} windows, {path.stat().st_size // 1024} KB)")
-
-    conn.close()
-    if not written:
-        print("nothing written")
-        return 1
+    Page output for a single night belongs to ``analyse --html``, which
+    computes the result once and renders it both ways. What is left for this
+    command is the thing it was always meant to be: a summary read from the
+    metric table across nights, which does depend on analyse having run.
+    """
+    print("wcly report is reserved for the cross-night trend document and is")
+    print("not built yet. It will read the metric table across raid nights, so")
+    print("it will need 'wcly analyse' to have run for the nights it compares.")
     print()
-    print(f"{len(written)} page(s) written. Open one in a browser, or send it on; "
-          f"it needs nothing else installed.")
-    return 0
+    print("For a page covering one night, use:")
+    print("  wcly analyse <code> --module havoc --html")
+    return 1
 
 
 def cmd_stats(args: argparse.Namespace) -> int:

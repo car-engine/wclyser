@@ -746,8 +746,15 @@ def _check_cli_flags() -> None:
     a = parsed(["analyse", "C", "--module", "havoc,other"])
     check("modules split", a.module == ["havoc", "other"], str(a.module))
 
-    a = parsed(["report", "C", "--module", "havoc"])
+    a = parsed(["analyse", "C", "--module", "havoc"])
     check("an absent flag stays None", a.player is None and a.fight is None)
+    check("--html is off unless asked for", a.html is None)
+
+    a = parsed(["analyse", "C", "--module", "havoc", "--html"])
+    check("bare --html means the default directory", a.html == "", repr(a.html))
+
+    a = parsed(["analyse", "C", "--module", "havoc", "--html", "out.html"])
+    check("--html takes a path", a.html == "out.html", repr(a.html))
 
     # A fight id that is not a number names the flag and stops the run.
     err = io.StringIO()
@@ -760,15 +767,19 @@ def _check_cli_flags() -> None:
         check("a non-numeric fight id is refused",
               "--fight" in message and "abc" in message, message.strip()[-60:])
 
-    # analyse and report each name the module to run rather than defaulting.
-    for command in ("analyse", "report"):
-        err = io.StringIO()
-        try:
-            with contextlib.redirect_stderr(err):
-                parsed([command, "C"])
-            check(f"{command} demands --module", False)
-        except SystemExit:
-            check(f"{command} demands --module", "--module" in err.getvalue())
+    # analyse names the module to run rather than defaulting to all of them.
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            parsed(["analyse", "C"])
+        check("analyse demands --module", False)
+    except SystemExit:
+        check("analyse demands --module", "--module" in err.getvalue())
+
+    # report is a placeholder for the cross-night document and takes no module.
+    a = parsed(["report", "C"])
+    check("report parses without a module", a.code == "C")
+    check("report has no module flag", not hasattr(a, "module"))
 
 
 if __name__ == "__main__":
