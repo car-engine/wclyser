@@ -291,6 +291,7 @@ def main() -> int:
 
         print("havoc analysis")
         _check_havoc()
+        _check_shard_model()
 
         print("\nall offline checks passed")
         return 0
@@ -454,7 +455,9 @@ def _check_coverage(tmp: Path, config, meta, alpha, fetcher) -> None:
 def _check_havoc() -> None:
     """Window construction, lead-in and shard reading, on hand-built casts."""
     from wclyser.analysis import REGISTRY, resolve
-    from wclyser.analysis.havoc import Cast, Priorities, _build_windows, shards_at
+    from wclyser.analysis.havoc import (
+        Cast, Generation, Priorities, _build_windows, shards_at,
+    )
     from wclyser.analysis.profiles import available, load_profile
 
     check("the havoc module is registered", "havoc" in REGISTRY)
@@ -531,7 +534,7 @@ def _check_havoc() -> None:
     check("the second window floors on the previous spend",
           second.shards.floor == 3.0, str(second.shards.floor))
     check("a window with no later spend has no reading",
-          shards_at([Cast(0, "Havoc", 80240)], 0, 0).reading is None)
+          shards_at([Cast(0, "Havoc", 80240)], 0, 0, 20_000, Generation()).reading is None)
 
     # A Havoc late in the pull is truncated by the end of the pull.
     late = _build_windows(
@@ -555,6 +558,69 @@ def _check_havoc() -> None:
     check("a pull with no Havoc has no windows",
           _build_windows([Cast(1_000, "Chaos Bolt", 116858)], "Havoc", 20_000,
                          5_000, 100_000, fight_id=1, pull_number=1) == [])
+
+def _check_shard_model() -> None:
+    """Back-extrapolation from the first spend to the window opening."""
+    from wclyser.analysis.havoc import Cast, Generation, shards_at
+    from wclyser.analysis.profiles import load_profile
+
+    gen = Generation.from_profile(load_profile("warlock_destruction")["havoc"])
+    check("Conflagrate generates half a shard", gen.per_cast["conflagrate"] == 0.5)
+    check("Soul Fire generates one", gen.per_cast["soul fire"] == 1.0)
+    check("Incinerate generates a fifth", gen.per_cast["incinerate"] == 0.2)
+    check("the passive tick is 0.1 every 1.5s",
+          gen.passive_per_tick == 0.1 and gen.tick_s == 1.5)
+    check("Havoc doubles generation", gen.multiplier == 2.0)
+
+    # Four seconds inside a window holding one Conflagrate.
+    casts = [
+        Cast(0, "Havoc", 80240),
+        Cast(1_000, "Conflagrate", 17962),
+        Cast(4_000, "Chaos Bolt", 116858, pool_type=7, pool_amount=35,
+             pool_cost=20, pool_max=50),
+    ]
+    # Conflagrate 0.5 x2 = 1.0, passive 4s / 1.5s x 0.1 x2 = 0.5333.
+    generated = gen.between(casts, 0, 4_000, window_end_ms=20_000)
+    check("generation inside the window is doubled",
+          abs(generated - (1.0 + 4.0 / 1.5 * 0.1 * 2)) < 1e-9, f"{generated:.4f}")
+
+    shards = shards_at(casts, 0, 0, 20_000, gen)
+    check("the reading is the pool at the first spend", shards.reading == 3.5)
+    check("the entry level subtracts what was generated",
+          abs(shards.entry - (3.5 - generated)) < 1e-9, str(shards.entry))
+    check("the delay is recorded", shards.delay_ms == 4_000)
+
+    # The same casts outside any window generate half as much.
+    outside = gen.between(casts, 0, 4_000, window_end_ms=0)
+    check("generation outside the window is not doubled",
+          abs(outside - (0.5 + 4.0 / 1.5 * 0.1)) < 1e-9, f"{outside:.4f}")
+
+    # A window that ends before the first spend splits the passive at the edge.
+    split = gen.between(casts, 0, 4_000, window_end_ms=2_000)
+    expected = 1.0 + (2.0 / 1.5 * 0.1 * 2) + (2.0 / 1.5 * 0.1)
+    check("passive generation splits at the window edge",
+          abs(split - expected) < 1e-9, f"{split:.4f}")
+
+    check("a cast on the boundary does not generate",
+          gen.between(casts, 1_000, 4_000, 20_000)
+          < gen.between(casts, 0, 4_000, 20_000))
+
+    # An entry level never goes below zero.
+    poor = shards_at(
+        [Cast(0, "Havoc", 80240)]
+        + [Cast(t, "Conflagrate", 17962) for t in range(500, 9_000, 500)]
+        + [Cast(9_500, "Chaos Bolt", 116858, pool_type=7, pool_amount=20,
+                pool_cost=20, pool_max=50)],
+        0, 0, 20_000, gen,
+    )
+    check("an over-subtracted entry is clamped at zero", poor.entry == 0.0,
+          str(poor.entry))
+
+    # With no rates configured nothing is subtracted.
+    bare = shards_at(casts, 0, 0, 20_000, Generation())
+    check("without rates the entry equals the reading", bare.entry == 3.5)
+    check("an empty model is inactive", not Generation().active)
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
