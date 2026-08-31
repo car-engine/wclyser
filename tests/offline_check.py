@@ -286,6 +286,9 @@ def main() -> int:
         print("database round trip")
         _check_database(tmp, config, meta, alpha, fetcher)
 
+        print("coverage and pruning")
+        _check_coverage(tmp, config, meta, alpha, fetcher)
+
         print("\nall offline checks passed")
         return 0
     finally:
@@ -366,6 +369,82 @@ def _check_database(tmp: Path, config, meta, alpha, fetcher) -> None:
         "SELECT boss_name, difficulty_name, pull_in_report, pull_seq FROM v_pull LIMIT 1"
     ).fetchone()
     check("the pull view resolves", row["difficulty_name"] == "Mythic")
+
+    conn.close()
+
+def _check_coverage(tmp: Path, config, meta, alpha, fetcher) -> None:
+    """The feedback an analysis gets when the database lacks what it needs."""
+    from wcl_analyser.db import MissingData, check as coverage_check, prune_streams
+    from wcl_analyser.db import require as coverage_require
+
+    casts = BY_KEY["casts"]
+    buffs = BY_KEY["buffs"]
+    deaths = BY_KEY["deaths"]
+    fight = meta.fights[0]
+    conn = open_database(tmp / "check.sqlite")
+
+    cov = coverage_check(conn, config, meta, [fight], [alpha], ["casts"])
+    check("an imported stream reads as complete", cov.complete)
+
+    # buffs was fetched into the cache by the fetch checks above, so the
+    # remedy is a free re-import.
+    fetcher.fetch_stream(meta, fight, buffs, alpha)
+    cov = coverage_check(conn, config, meta, [fight], [alpha], ["casts", "buffs"])
+    check("a cached but unimported stream is a gap", len(cov.gaps) == 1)
+    check("its remedy is an import", cov.needs_import and not cov.needs_fetch)
+    check("the message names the command",
+          "wcla import" in cov.message() and "--stream buffs" in cov.message(),
+          cov.message())
+
+    # deaths was never fetched, so the remedy has to start with a fetch.
+    cov = coverage_check(conn, config, meta, [fight], [alpha], ["deaths"])
+    check("an uncached stream needs fetching", len(cov.needs_fetch) == 1)
+    check("the message says a fetch comes first", "wcla fetch" in cov.message(),
+          cov.message())
+
+    try:
+        coverage_require(conn, config, meta, [fight], [alpha], ["deaths"])
+        check("require raises on a gap", False)
+    except MissingData:
+        check("require raises on a gap", True)
+
+    cov = coverage_require(conn, config, meta, [fight], [alpha], ["casts"])
+    check("require passes when the data is there", cov.complete)
+
+    # Pruning drops a stream the import list no longer wants.
+    from wcl_analyser.fetch.scopes import subject_slug
+    from wcl_analyser.db import Importer
+
+    Importer(conn, config, meta).run([fight], [alpha], [casts, buffs])
+    before = conn.execute(
+        "SELECT COUNT(*) n FROM event WHERE stream = 'buffs'"
+    ).fetchone()["n"]
+    check("buffs imported for the prune check", before > 0)
+
+    summary = prune_streams(conn, meta.code, ["casts"], dry_run=True)
+    still = conn.execute(
+        "SELECT COUNT(*) n FROM event WHERE stream = 'buffs'"
+    ).fetchone()["n"]
+    check("a dry run deletes nothing", still == before)
+    check("a dry run still counts what it would remove",
+          summary.removed_rows == before, str(summary.removed_rows))
+
+    prune_streams(conn, meta.code, ["casts"])
+    gone = conn.execute(
+        "SELECT COUNT(*) n FROM event WHERE stream = 'buffs'"
+    ).fetchone()["n"]
+    kept = conn.execute(
+        "SELECT COUNT(*) n FROM event WHERE stream = 'casts'"
+    ).fetchone()["n"]
+    check("prune removed the unwanted stream", gone == 0)
+    check("prune kept the wanted stream", kept > 0)
+    logged = conn.execute(
+        "SELECT COUNT(*) n FROM import_log WHERE stream = 'buffs'"
+    ).fetchone()["n"]
+    check("prune cleared the import log too", logged == 0)
+
+    cov = coverage_check(conn, config, meta, [fight], [alpha], ["buffs"])
+    check("a pruned stream reads as a gap again", not cov.complete)
 
     conn.close()
 
