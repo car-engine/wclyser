@@ -1,0 +1,34 @@
+# Copy to config.yaml and edit. Credentials are NOT read from here; export
+# WCL_CLIENT_ID and WCL_CLIENT_SECRET in the environment instead.
+
+data_dir: data
+
+subjects:
+  # Fallback list, used when nothing more specific matches.
+  default: []
+
+  # Pin the analysed players for a particular report. Useful when you are not
+  # in the raid yourself and are analysing for someone else.
+  by_report:
+    # dYGnBvDgfjcTNqKX: ["Nevaritius-Frostmourne-US"]
+
+  # Pick up whoever in the report matches, so a night with two warlocks and a
+  # night with three both work without editing anything.
+  auto_select:
+    class: Warlock
+    spec: Demonology
+
+fetch:
+  encounters_only: true
+  event_limit: 10000
+  include_resources: true
+  # A pull counts as finished once the report has run on this far past its end.
+  finality_margin_s: 30
+  # Refuse to start a fetch with fewer points than this left in the hour.
+  point_floor: 200
+
+http:
+  timeout_s: 60
+  max_attempts: 6
+  backoff_base_s: 2
+  backoff_cap_s: 60
