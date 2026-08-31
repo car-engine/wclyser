@@ -18,3 +18,6 @@ wcla = "wcl_analyser.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["wcl_analyser*"]
+
+[tool.setuptools.package-data]
+wcl_analyser = ["db/migrations/*.sql"]
