@@ -34,6 +34,35 @@ from . import report as report_html
 log = logging.getLogger("wcly")
 
 
+class CommaList(argparse.Action):
+    """A repeatable flag that also accepts comma-separated values.
+
+    ``--player A --player B`` and ``--player A,B`` both give ``["A", "B"]``,
+    and the two forms can be mixed. Conversion happens here rather than in
+    argparse's ``type``, which would run against the whole comma-separated
+    string and reject it.
+    """
+
+    def __init__(self, option_strings, dest, item_type=str, **kwargs):
+        self._item_type = item_type
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        collected = list(getattr(namespace, self.dest, None) or [])
+        for part in str(values).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                collected.append(self._item_type(part))
+            except ValueError:
+                parser.error(
+                    f"{option_string}: {part!r} is not a valid "
+                    f"{self._item_type.__name__}"
+                )
+        setattr(namespace, self.dest, collected)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="wcly", description=__doc__)
     parser.add_argument("--config", help="path to config.yaml")
@@ -53,22 +82,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     players = sub.add_parser("players", help="list the players in a report")
     players.add_argument("code")
-    players.add_argument("--player", action="append", help="resolve these subjects")
+    players.add_argument(
+        "--player", action=CommaList,
+        help="subject; repeat the flag or comma-separate",
+    )
     players.set_defaults(func=cmd_players)
 
     fetch = sub.add_parser("fetch", help="fetch and cache raw events for a report")
     fetch.add_argument("code")
     fetch.add_argument(
         "--player",
-        action="append",
-        help="subject to fetch, repeatable; overrides configuration",
+        action=CommaList,
+        help="subject to fetch; repeat or comma-separate. Overrides configuration",
     )
     fetch.add_argument(
         "--stream",
-        action="append",
-        help=f"stream to fetch, repeatable. Known: {', '.join(sorted(BY_KEY))}",
+        action=CommaList,
+        help=f"stream to fetch; repeat or comma-separate. Known: {', '.join(sorted(BY_KEY))}",
     )
-    fetch.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
+    fetch.add_argument(
+        "--fight", action=CommaList, item_type=int,
+        help="fight id; repeat or comma-separate",
+    )
     _add_focus_flags(fetch)
     fetch.add_argument("--force", action="store_true", help="ignore cached blobs")
     fetch.add_argument(
@@ -82,13 +117,18 @@ def build_parser() -> argparse.ArgumentParser:
         "import", help="import cached blobs into SQLite; never touches the API"
     )
     imp.add_argument("code")
-    imp.add_argument("--player", action="append", help="subject, repeatable")
+    imp.add_argument(
+        "--player", action=CommaList, help="subject; repeat or comma-separate"
+    )
     imp.add_argument(
         "--stream",
-        action="append",
-        help="stream to import, repeatable; overrides the import block",
+        action=CommaList,
+        help="stream to import; repeat or comma-separate. Overrides the import block",
     )
-    imp.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
+    imp.add_argument(
+        "--fight", action=CommaList, item_type=int,
+        help="fight id; repeat or comma-separate",
+    )
     imp.add_argument("--force", action="store_true", help="re-import unchanged blobs")
     _add_focus_flags(imp)
     imp.set_defaults(func=cmd_import)
@@ -97,9 +137,12 @@ def build_parser() -> argparse.ArgumentParser:
         "coverage", help="what an analysis needs against what has been imported"
     )
     cov.add_argument("code")
-    cov.add_argument("--player", action="append", help="subject, repeatable")
     cov.add_argument(
-        "--stream", action="append", help="stream the analysis needs, repeatable"
+        "--player", action=CommaList, help="subject; repeat or comma-separate"
+    )
+    cov.add_argument(
+        "--stream", action=CommaList,
+        help="stream the analysis needs; repeat or comma-separate"
     )
     _add_focus_flags(cov)
     cov.set_defaults(func=cmd_coverage)
@@ -109,7 +152,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     prune.add_argument("code", nargs="?")
     prune.add_argument(
-        "--keep", action="append", help="stream to keep, repeatable; overrides config"
+        "--keep", action=CommaList,
+        help="stream to keep; repeat or comma-separate. Overrides config"
     )
     prune.add_argument("--dry-run", action="store_true", help="report without deleting")
     prune.set_defaults(func=cmd_prune)
@@ -120,11 +164,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     ana = sub.add_parser("analyse", help="run analysis modules over the database")
     ana.add_argument("code")
-    ana.add_argument("--player", action="append", help="subject, repeatable")
     ana.add_argument(
-        "--module", action="append", help="analysis module, repeatable; default all"
+        "--player", action=CommaList, help="subject; repeat or comma-separate"
     )
-    ana.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
+    ana.add_argument(
+        "--module", action=CommaList,
+        help="analysis module; repeat or comma-separate. Default all"
+    )
+    ana.add_argument(
+        "--fight", action=CommaList, item_type=int,
+        help="fight id; repeat or comma-separate",
+    )
     ana.add_argument(
         "--detail", action="store_true", help="list every cast with its timing"
     )
@@ -138,13 +188,18 @@ def build_parser() -> argparse.ArgumentParser:
         "report", help="write a self-contained HTML page for a night"
     )
     rep.add_argument("code")
-    rep.add_argument("--player", action="append", help="subject, repeatable")
     rep.add_argument(
-        "--module", action="append",
-        help=f"analysis module, repeatable. Pages exist for: "
+        "--player", action=CommaList, help="subject; repeat or comma-separate"
+    )
+    rep.add_argument(
+        "--module", action=CommaList,
+        help=f"analysis module; repeat or comma-separate. Pages exist for: "
              f"{', '.join(sorted(report_html.TEMPLATES))}",
     )
-    rep.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
+    rep.add_argument(
+        "--fight", action=CommaList, item_type=int,
+        help="fight id; repeat or comma-separate",
+    )
     rep.add_argument(
         "--out",
         help="output file when one page is written, otherwise a directory. "
