@@ -9,21 +9,17 @@ layers are described below but not written.
 
 ## Setup
 
-Create an API client at https://www.warcraftlogs.com/api/clients/ and export
-the credentials. They are read from the environment only, never from a file.
-
-```bash
-export WCL_CLIENT_ID=...
-export WCL_CLIENT_SECRET=...
-```
-
-Then install and copy the example configuration.
+Create an API client at https://www.warcraftlogs.com/api/clients/. Copy
+`.env.example` to `.env` and fill in the client id and secret. `.env` is
+gitignored. An exported `WCL_CLIENT_ID` and `WCL_CLIENT_SECRET` take
+precedence over the file when both are present.
 
 ```bash
 pip install -e .
 ```
 
-`cp config.example.yaml config.yaml` and edit. `config.yaml` is gitignored.
+Then `cp config.example.yaml config.yaml` and edit. `config.yaml` is
+gitignored, and holds the players and the pulls under study.
 
 ## Commands
 
