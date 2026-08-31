@@ -34,6 +34,7 @@ wcly coverage <report_code> --stream casts     # what an analysis needs vs what 
 wcly prune <report_code>                       # drop streams the import list dropped
 wcly stats <report_code>                       # row counts and imported pulls
 wcly analyse <report_code> --module havoc      # run analysis modules
+wcly report <report_code>                      # write a self-contained HTML page
 ```
 
 `--database <path>` on any command overrides the SQLite file, for a
@@ -161,6 +162,28 @@ Specialisation knowledge is data, not code. `wclyser/profiles/<class>_<spec>.yam
 holds the spell lists, and the profile is chosen per pull, because a player who
 respecs between bosses has one specialisation for some pulls and another for
 the rest.
+
+### Reports
+
+`wcly report <code>` writes one self-contained HTML page per subject. The page
+carries its own CSS, script and data, so it opens on a machine with none of
+this installed and can be sent to the player it describes. The only external
+request is the Google Fonts stylesheet, and the page falls back to system faces
+without it.
+
+Every window links to its own lead-in and window in Warcraft Logs, filtered to
+that player's casts. Warcraft Logs URLs take report-relative milliseconds,
+which is the base the event timestamps already use, so the range is
+`fight.start_ms + t_rel_ms`.
+
+Templates are per module rather than generic, in
+`wclyser/report/templates/`. The Havoc page draws a raster of cast marks
+against a window, which no general table renderer would produce.
+
+```bash
+wcly report <code>                        # one page per subject, into data/reports
+wcly report <code> --player X --out p.html   # one named file
+```
 
 Built so far: `havoc`, which lists what was cast inside each Havoc window, what
 was cleared out of the way in the seconds before it opened, and the shard level

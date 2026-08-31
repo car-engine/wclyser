@@ -13,6 +13,8 @@ wcly players <report_code>           # roster and resolved subjects
 wcly fetch <report_code>             # fetch and cache, narrowed by the focus
 wcly import <report_code>            # cached blobs into SQLite, no credentials
 wcly coverage <report_code>          # what is needed against what is imported
+wcly analyse <report_code>           # run analysis modules
+wcly report <report_code>            # self-contained HTML page per subject
 wcly prune <report_code>             # drop streams the import list no longer wants
 wcly budget                          # hourly API point budget
 ```
@@ -46,6 +48,10 @@ costs points once and then sits on disk. `import.streams` decides what reaches
 the database, because rows cost space in a file meant to grow across a tier.
 Never widen `import.streams` to make an analysis pass; the analysis declares
 what it reads and `db.coverage.require` reports the gap.
+
+**A report page is self-contained.** It carries its own CSS, script and data,
+because it is sent to someone who has none of this installed. Google Fonts is
+the only permitted external request. Never add a CDN script or a remote image.
 
 ## Invariants
 

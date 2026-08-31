@@ -30,6 +30,28 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, report layer
+
+`wcly report` writes the Havoc page from the database. One self-contained HTML
+file per subject, carrying its own CSS, script and data, so it opens anywhere
+and can be sent to the player it describes.
+
+`Result` gained a `payload` dictionary, which is the structured form of a
+module's output. The terminal keeps rendering `lines`; the page renders the
+payload. Templates live in `wclyser/report/templates/` and are per module, not
+generic: the Havoc page draws a raster of cast marks against a window, and a
+general table renderer would not produce it.
+
+Every window links to its own lead-in and window in Warcraft Logs. The URL
+takes report-relative milliseconds, the same base the event timestamps use, so
+the range is `fight.start_ms + t_rel_ms` with `source` set to the subject's
+report-local actor id. Confirmed working against the live site.
+
+Checked on the 2026-08-31 night, which has two warlocks: two pages, 155 and 160
+windows, each carrying its own actor id in its links. One pull was left out
+because it was never fetched, and the specialisation filter reported it rather
+than analysing a gap.
+
 ## 2026-09-01, later still
 
 The shard level at a window opening is now extrapolated rather than read.
