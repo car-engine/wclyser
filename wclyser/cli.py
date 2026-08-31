@@ -27,7 +27,7 @@ from .db import (
     schema_version,
 )
 from .fetch.scopes import BY_KEY, Scope
-from .analysis import Ctx, resolve as resolve_modules, store_metrics
+from .analysis import REGISTRY as MODULES, Ctx, resolve as resolve_modules, store_metrics
 from .db.coverage import require as require_coverage
 from . import report as report_html
 
@@ -168,8 +168,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--player", action=CommaList, help="subject; repeat or comma-separate"
     )
     ana.add_argument(
-        "--module", action=CommaList,
-        help="analysis module; repeat or comma-separate. Default all"
+        "--module", action=CommaList, required=True,
+        help=f"analysis module to run; repeat or comma-separate. "
+             f"Known: {', '.join(sorted(MODULES))}",
     )
     ana.add_argument(
         "--fight", action=CommaList, item_type=int,
@@ -192,9 +193,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--player", action=CommaList, help="subject; repeat or comma-separate"
     )
     rep.add_argument(
-        "--module", action=CommaList,
-        help=f"analysis module; repeat or comma-separate. Pages exist for: "
-             f"{', '.join(sorted(report_html.TEMPLATES))}",
+        "--module", action=CommaList, required=True,
+        help=f"analysis module to render; repeat or comma-separate. "
+             f"Pages exist for: {', '.join(sorted(report_html.TEMPLATES))}",
     )
     rep.add_argument(
         "--fight", action=CommaList, item_type=int,
@@ -559,11 +560,13 @@ def cmd_report(args: argparse.Namespace) -> int:
     meta = load_offline_meta(config.raw_dir, args.code)
     subjects, fights = _analysis_scope(args, config, meta)
 
-    modules = [m for m in resolve_modules(args.module) if report_html.available(m.key)]
-    if not modules:
+    modules = resolve_modules(args.module)
+    without = [m.key for m in modules if not report_html.available(m.key)]
+    if without:
         raise WCLError(
-            "no analysis module with a page template was selected. "
-            f"Pages exist for: {', '.join(sorted(report_html.TEMPLATES))}"
+            f"no page template for {', '.join(without)}. "
+            f"Pages exist for: {', '.join(sorted(report_html.TEMPLATES))}. "
+            f"Run 'wcly analyse' for a module with no page."
         )
 
     out = Path(args.out) if args.out else config.data_dir / "reports"
