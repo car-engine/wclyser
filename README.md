@@ -43,6 +43,12 @@ Offline checks, needing no credentials and no network:
 python tests/offline_check.py
 ```
 
+## Other documents
+
+- [CLAUDE.md](CLAUDE.md) — conventions and invariants for anyone working here.
+- [LOG.md](LOG.md) — what has been built, and what is outstanding.
+- [docs/wcl-api.md](docs/wcl-api.md) — measured API behaviour.
+
 ## Architecture
 
 ### The fetch unit
@@ -81,27 +87,14 @@ Those rules make the planned `watch` command a loop over `report_meta` and
 
 ### Verified API filter semantics
 
-Established against report `dYGnBvDgfjcTNqKX`, and not what the field names
-suggest.
+The event filter fields do not mean what their names suggest. Under
+`hostilityType: Friendlies`, `sourceID` selects the subject player and their
+pets whichever way the event points, and the dataType carries the direction.
+Under `hostilityType: Enemies` the id filters are unusable and streams have to
+be fetched raid-wide.
 
-- With `hostilityType: Friendlies`, `sourceID` selects the subject player and
-  their pets whichever way the event points. The dataType carries the
-  direction. `DamageTaken` with `sourceID: 5` returns the damage that player
-  took, with the real attacker still in each event's `sourceID`. Filtering the
-  same stream by `targetID` returns only self-inflicted damage.
-- `Buffs` and `Debuffs` under `Friendlies` follow the same rule: `sourceID`
-  gives the auras sitting on the subject, `targetID` gives the auras the
-  subject applied.
-- `Healing` is the exception in the plan: it is filtered by `targetID` to give
-  healing received, which is what the death post-mortem needs.
-- Under `hostilityType: Enemies` the id filters resolve against enemy indices
-  the report does not expose, so every filtered form returns nothing. Debuffs
-  on enemies and enemy casts are fetched raid-wide and narrowed at import.
-- `filterExpression` returned nothing in every form tried, including
-  `source.id = 5` and `target.id = 5`. The id filters are the usable mechanism.
-- `useAbilityIDs: true, useActorIDs: true` keeps events compact and resolvable
-  from masterData. Setting them false embeds whole actor and ability objects
-  and removes the `sourceID` and `abilityGameID` fields.
+Full measurements are in [docs/wcl-api.md](docs/wcl-api.md). Read it before
+changing a stream definition.
 
 ### Specialisation is per fight
 
