@@ -17,6 +17,26 @@ havoc:
   # bad list cast here was cleared out of the way, which is a good sign.
   lead_in_s: 5
 
+  # Shard generation, used to extrapolate the level at the window opening back
+  # from the first shard-spending cast inside it. Shards per cast.
+  #
+  # Two approximations are baked in and both under-count generation, so the
+  # extrapolated entry level reads slightly high:
+  #   - critical strikes generate extra shards and are ignored;
+  #   - the Immolate or Wither tick is treated as a fixed cadence, and assumed
+  #     to be running for the whole stretch being extrapolated across.
+  generation:
+    per_cast:
+      Conflagrate: 0.5
+      Soul Fire: 1.0
+      Incinerate: 0.2
+    passive:
+      shards_per_tick: 0.1
+      tick_s: 1.5
+    # Havoc duplicates the cast onto a second target, so generation inside the
+    # window counts twice.
+    havoc_multiplier: 2
+
   # Best first. Rank 1 is the best use of a duplicated cast.
   good:
     - Soul Fire
