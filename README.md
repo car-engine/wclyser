@@ -33,8 +33,8 @@ wcly import <report_code>                      # cached blobs into SQLite
 wcly coverage <report_code> --stream casts     # what an analysis needs vs what is in
 wcly prune <report_code>                       # drop streams the import list dropped
 wcly stats <report_code>                       # row counts and imported pulls
-wcly analyse <report_code> --module havoc      # run analysis modules
-wcly report <report_code>                      # write a self-contained HTML page
+wcly analyse <report_code> --module havoc      # run a module, print it, store metrics
+wcly report <report_code> --module havoc       # run a module, write an HTML page
 ```
 
 `--database <path>` on any command overrides the SQLite file, for a
@@ -180,9 +180,13 @@ Templates are per module rather than generic, in
 `wclyser/report/templates/`. The Havoc page draws a raster of cast marks
 against a window, which no general table renderer would produce.
 
+`--module` is required on both `analyse` and `report`. Neither defaults to
+running everything, because a module is a specific question and running the lot
+by accident is not useful.
+
 ```bash
-wcly report <code>                        # one page per subject, into data/reports
-wcly report <code> --player X --out p.html   # one named file
+wcly report <code> --module havoc                    # one page per subject
+wcly report <code> --module havoc --player X --out p.html   # one named file
 ```
 
 `--player`, `--module`, `--stream`, `--fight` and `--keep` all take a value

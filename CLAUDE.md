@@ -13,8 +13,8 @@ wcly players <report_code>           # roster and resolved subjects
 wcly fetch <report_code>             # fetch and cache, narrowed by the focus
 wcly import <report_code>            # cached blobs into SQLite, no credentials
 wcly coverage <report_code>          # what is needed against what is imported
-wcly analyse <report_code>           # run analysis modules
-wcly report <report_code>            # self-contained HTML page per subject
+wcly analyse <report_code> --module X   # run a module, store its metrics
+wcly report <report_code> --module X    # run a module, write an HTML page
 wcly prune <report_code>             # drop streams the import list no longer wants
 wcly budget                          # hourly API point budget
 ```

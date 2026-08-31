@@ -30,6 +30,17 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, --module required
+
+`analyse` and `report` both demand `--module`. Omitting it used to run every
+registered module, which was invisible with one module and would have been a
+surprise with two.
+
+Open question recorded rather than acted on: `report` runs the module itself
+and does not need `analyse` first, so the two commands are the same computation
+with different renderers. `analyse` writes metrics and `report` does not, which
+means a night reported but never analysed leaves the trend table empty.
+
 ## 2026-09-01, comma-separated flags
 
 Every repeatable flag now also accepts comma-separated values, so
