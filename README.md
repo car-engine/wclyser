@@ -25,11 +25,16 @@ start one; it holds the players, the pulls under study, the analysis modules
 and the import stream list, which is to say one saved run.
 
 ```bash
-wcly analyse <code> --config nights/entombed-mythic.yaml
+wcly analyse <code> --config configs/entombed-mythic.yaml
 wcly analyse <code> --module havoc --player Nevaritius --difficulty Mythic
 ```
 
-Both forms are complete. Flags override anything the config sets.
+Both forms are complete. Flags override anything the config sets. Saved runs
+live in `configs/`, one file per question.
+
+Pages go to `reports/<raid_night>_<report_code>/<player>_<module>.html`, so a
+listing sorts by night and each night holds one file per player. `--html PATH`
+overrides the root, or names a single file when it ends in `.html`.
 
 ## Commands
 

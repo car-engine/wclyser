@@ -30,6 +30,23 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, saved runs and report layout
+
+Saved runs moved to `configs/`. The Entombed Sentinels file dropped its
+`import.streams` list and now relies on `analysis.modules`, so the import takes
+casts alone.
+
+Pages go to `reports/<raid_night>_<report_code>/<player>_<module>.html` rather
+than under `data/`, which is a cache. The night leads so a listing sorts
+chronologically, and the report code separates two reports from one evening.
+`reports_dir` in a config moves the root.
+
+Found by the first run of the new path: `destination` was not exported from the
+`wclyser.report` package, so writing a page raised an AttributeError after the
+whole analysis had run. Nothing offline exercised the command line's page path.
+The checks now assert every name the command line reaches for is exported, and
+that a path separator in a player name or report code cannot escape the folder.
+
 ## 2026-09-01, import follows the module
 
 Which streams reach the database is now decided by `--stream`, then a named

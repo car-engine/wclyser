@@ -29,6 +29,10 @@ pagination, the cache-first rule, the finality rule and subject resolution.
 
 ## Rules
 
+Saved runs live in `configs/`, generated pages in
+`reports/<night>_<report>/<player>_<module>.html`. Both are gitignored, along
+with `data/`.
+
 **A config file applies only when named.** `--config` is the one way a YAML
 file reaches a run. Nothing is discovered from the working directory or the
 environment, because a setting that narrows the pulls or picks the players

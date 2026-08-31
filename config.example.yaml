@@ -36,19 +36,19 @@ focus:
 analysis:
   modules: [havoc]
 
-# What goes into the database. Fetching stays wide, because a blob costs API
-# points once and then sits on disk at a few hundred kilobytes. Importing is
-# narrowed, because every row costs space in a file meant to grow across a
-# whole tier, and re-importing from cache is free.
-#
-# Leave streams unset and the import takes what the analysis modules above
-# read, which for havoc is casts alone. With neither a stream list nor a
-# module it imports everything, which is 47.5 MB a night against 1.55 MB.
+# Where generated pages go. Defaults to ./reports, laid out as
+#   reports/<raid_night>_<report_code>/<player>_<module>.html
+# reports_dir: reports
+
+# What reaches the database. With no list here the import takes exactly what
+# the analysis modules above read, which for havoc is casts alone. With
+# neither a list nor a module it imports everything, 47.5 MB a night against
+# 1.55 MB.
 #
 # An analysis that needs a stream absent from here fails with the command to
 # add it, rather than answering over missing rows.
-import:
-  streams: [casts, resources]
+# import:
+#   streams: [casts, resources]
 
 fetch:
   encounters_only: true
