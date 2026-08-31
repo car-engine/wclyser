@@ -1,9 +1,14 @@
 """Configuration loading.
 
-Credentials come from the environment only. Everything else comes from a YAML
-file, searched for at ``$WCLYSER_CONFIG``, then ``./config.yaml``, then
-``~/.config/wclyser/config.yaml``. A missing file is not an error; the
-defaults below are usable on their own.
+Credentials come from the environment, then a gitignored ``.env``.
+
+Everything else comes from a YAML file that is read only when ``--config``
+names it. Nothing is discovered: a file sitting in the working directory has no
+effect unless it is asked for. A config that narrows the pulls or picks the
+players changes what a command answers, and a setting that does that should be
+visible in the command that ran.
+
+Without one, the defaults below apply and the flags carry the whole request.
 """
 
 from __future__ import annotations
@@ -73,6 +78,17 @@ class FetchSettings:
 
 
 @dataclass
+class AnalysisSettings:
+    """Which analysis modules a saved configuration runs.
+
+    A config file is a recipe for an analysis run, so it can name the modules
+    as well as the pulls and the players. ``--module`` overrides it.
+    """
+
+    modules: list[str] | None = None
+
+
+@dataclass
 class ImportSettings:
     """What goes into the database.
 
@@ -100,6 +116,7 @@ class Config:
     data_dir: Path
     subjects: SubjectRules = field(default_factory=SubjectRules)
     focus: FocusRules = field(default_factory=FocusRules)
+    analysis: AnalysisSettings = field(default_factory=AnalysisSettings)
     fetch: FetchSettings = field(default_factory=FetchSettings)
     import_: ImportSettings = field(default_factory=ImportSettings)
     http: HTTPSettings = field(default_factory=HTTPSettings)
@@ -121,25 +138,18 @@ class Config:
 
 
 def find_config_file(explicit: str | Path | None = None) -> Path | None:
-    if explicit:
-        path = Path(explicit)
-        if not path.is_file():
-            raise ConfigError(f"config file not found: {path}")
-        return path
-    env = os.environ.get("WCLYSER_CONFIG")
-    if env:
-        path = Path(env)
-        if not path.is_file():
-            raise ConfigError(f"WCLYSER_CONFIG points at a missing file: {path}")
-        return path
-    candidates = [Path.cwd() / name for name in _CONFIG_NAMES]
-    candidates += [
-        Path.home() / ".config" / "wclyser" / name for name in _CONFIG_NAMES
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-    return None
+    """Resolve a config path. Only an explicit one counts.
+
+    Nothing is searched for. A ``config.yaml`` in the working directory is read
+    when a command names it and ignored otherwise, so no run is quietly shaped
+    by a file the command line does not mention.
+    """
+    if not explicit:
+        return None
+    path = Path(explicit)
+    if not path.is_file():
+        raise ConfigError(f"config file not found: {path}")
+    return path
 
 
 def read_dotenv(path: Path) -> dict[str, str]:
@@ -222,6 +232,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
     )
 
     focus = FocusRules(**(raw.get("focus") or {}))
+    analysis = AnalysisSettings(**(raw.get("analysis") or {}))
     fetch = FetchSettings(**(raw.get("fetch") or {}))
     import_ = ImportSettings(**(raw.get("import") or {}))
     http = HTTPSettings(**(raw.get("http") or {}))
@@ -232,6 +243,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
         data_dir=data_dir,
         subjects=subjects,
         focus=focus,
+        analysis=analysis,
         fetch=fetch,
         import_=import_,
         http=http,
