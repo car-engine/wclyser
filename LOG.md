@@ -46,9 +46,25 @@ Logs':
 Left alone, because there `WCL` means Warcraft Logs: `WCL_CLIENT_ID`,
 `WCL_CLIENT_SECRET`, the `WCLError` hierarchy, and `docs/wcl-api.md`.
 
-61 replacements across 14 files. The repository directory is still
-`wcl-analyser`; renaming it invalidates the editable install's absolute path,
-so it is a separate step for when the folder is not in use.
+61 replacements across 14 files.
+
+The repository directory was renamed afterwards, which needed the session using
+it to be closed first: Windows refuses to rename a directory that is a running
+process's working directory.
+
+**A folder rename breaks the virtual environment.** `pyvenv.cfg` survives,
+because its `home` points at the base Python install rather than at the
+project, so `.venv/Scripts/python.exe` still runs. Every `.exe` in
+`.venv/Scripts` does not: each embeds the absolute path of the interpreter that
+created it, so `pip.exe` fails with "Unable to create process". The editable
+install's finder also still maps the package to the old path.
+
+`python -m pip install -e .` would repair the project's own launcher, leaving
+the five others stale. The venv was deleted and recreated instead, which is a
+minute's work and leaves nothing pointing at the old path.
+
+The `data` directory needed nothing. `data_dir` is the relative path `data`,
+resolved against the configuration file's own location.
 
 ## 2026-08-31, later still
 
