@@ -27,6 +27,8 @@ from .db import (
     schema_version,
 )
 from .fetch.scopes import BY_KEY, Scope
+from .analysis import Ctx, resolve as resolve_modules, store_metrics
+from .db.coverage import require as require_coverage
 
 log = logging.getLogger("wcly")
 
@@ -114,6 +116,22 @@ def build_parser() -> argparse.ArgumentParser:
     stats = sub.add_parser("stats", help="row counts and the imported pulls")
     stats.add_argument("code", nargs="?")
     stats.set_defaults(func=cmd_stats)
+
+    ana = sub.add_parser("analyse", help="run analysis modules over the database")
+    ana.add_argument("code")
+    ana.add_argument("--player", action="append", help="subject, repeatable")
+    ana.add_argument(
+        "--module", action="append", help="analysis module, repeatable; default all"
+    )
+    ana.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
+    ana.add_argument(
+        "--detail", action="store_true", help="list every cast with its timing"
+    )
+    ana.add_argument(
+        "--no-store", action="store_true", help="print without writing metrics"
+    )
+    _add_focus_flags(ana)
+    ana.set_defaults(func=cmd_analyse)
 
     streams = sub.add_parser("streams", help="show the fetch plan")
     streams.set_defaults(func=cmd_streams)
@@ -397,6 +415,62 @@ def cmd_prune(args: argparse.Namespace) -> int:
             f"{verb} {summary.removed_rows} event rows across "
             f"{summary.removed_blobs} imported blobs"
         )
+    conn.close()
+    return 0
+
+
+def cmd_analyse(args: argparse.Namespace) -> int:
+    config = _load(args)
+    meta = load_offline_meta(config.raw_dir, args.code)
+    subjects = meta.resolve_subjects(config, args.player)
+    if not subjects:
+        raise WCLError(
+            "no subjects resolved. Pass --player, or set subjects in config.yaml."
+        )
+
+    encounter, difficulty, spec = _focus(args, config)
+    fights = select_fights(meta.fights, encounter, difficulty, args.fight)
+    if spec:
+        fights = _filter_cached_spec(config, meta, fights, subjects, spec)
+    if not fights:
+        raise WCLError("the focus matched no pulls in this report")
+
+    modules = resolve_modules(args.module)
+    conn = open_database(config.db_path)
+
+    print(f"{meta.code}  night {meta.raid_night}  {len(fights)} pulls")
+    print(f"subjects: {', '.join(a.player_key for a in subjects)}")
+    print(f"modules:  {', '.join(m.key for m in modules)}")
+
+    ctx = Ctx(
+        conn=conn,
+        config=config,
+        meta=meta,
+        fights=fights,
+        subjects=subjects,
+        options={"detail": args.detail},
+    )
+
+    stored = 0
+    for module in modules:
+        # Raises with the command to run rather than answering over the gap.
+        require_coverage(
+            conn, config, meta, fights, subjects, sorted(module.requires)
+        )
+        results = module.run(ctx)
+        for player_key, result in results.items():
+            print()
+            print(f"== {result.title} ==")
+            for line in result.lines:
+                print(line)
+            for warning in result.warnings:
+                print(f"  note: {warning}")
+            if not args.no_store:
+                stored += store_metrics(conn, meta.code, player_key, result)
+
+    if stored:
+        print()
+        print(f"{stored} metrics written")
     conn.close()
     return 0
 
