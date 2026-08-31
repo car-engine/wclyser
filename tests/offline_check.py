@@ -721,12 +721,32 @@ def _check_report(tmp: Path) -> None:
     except WCLError:
         check("rendering an unknown module raises", True)
 
-    name = rp.filename("TEST123", "Alpha-Frostmourne-US", "havoc")
-    check("the filename is safe and identifies the page",
-          name == "TEST123-Alpha-Frostmourne-US-havoc.html", name)
+    # Everything the command line reaches for has to be exported, or the page
+    # path fails at the moment it writes.
+    for name in ("TEMPLATES", "available", "destination", "filename", "render",
+                 "slug", "write"):
+        check(f"report exports {name}", hasattr(rp, name))
 
-    out = rp.write(tmp / "reports" / name, html)
+    leaf = rp.filename("Alpha-Frostmourne-US", "havoc")
+    check("the filename names the player and the module",
+          leaf == "Alpha-Frostmourne-US_havoc.html", leaf)
+
+    where = rp.destination(tmp / "reports", "2026-08-30", "TEST123",
+                           "Alpha-Frostmourne-US", "havoc")
+    check("the night and report make the folder",
+          where.parent.name == "2026-08-30_TEST123", where.parent.name)
+    check("and the page sits inside it", where.name == leaf, where.name)
+
+    odd = rp.destination(tmp / "reports", "2026-08-30", "a/b",
+                         "Al pha:x", "hav oc")
+    check("a path separator cannot escape the folder",
+          "/" not in odd.parent.name and "\\" not in odd.parent.name,
+          odd.parent.name)
+    check("nor the filename", "/" not in odd.name and ":" not in odd.name, odd.name)
+
+    out = rp.write(where, html)
     check("the page is written to disk", out.is_file() and out.stat().st_size > 1000)
+    check("its directory was created", out.parent.is_dir())
 
 
 def _check_config_discovery(tmp: Path) -> None:
