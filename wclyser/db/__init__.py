@@ -1,4 +1,4 @@
-from .coverage import Coverage, Gap, MissingData, check, require
+from .coverage import Coverage, Gap, MissingData, check, ensure, require
 from .importer import (
     ImportSummary,
     Importer,
@@ -16,6 +16,7 @@ __all__ = [
     "PruneSummary",
     "MissingData",
     "check",
+    "ensure",
     "connect",
     "database_stats",
     "migrate",

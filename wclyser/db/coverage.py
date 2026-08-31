@@ -146,3 +146,41 @@ def require(
     if not coverage.complete:
         raise MissingData(coverage.message())
     return coverage
+
+
+def ensure(
+    conn: sqlite3.Connection,
+    config: Config,
+    meta: ReportMeta,
+    fights: list[Fight],
+    subjects: list[Actor],
+    required: list[str],
+    allow_import: bool = True,
+) -> tuple[Coverage, object | None]:
+    """Make the required data present where doing so is free.
+
+    A gap whose blob is already cached is closed by importing it, which costs
+    no API points and is idempotent. A gap with no blob needs a fetch, which
+    spends points, so it raises instead and names the command. That keeps
+    analysis unable to reach the network however it is called.
+
+    Returns the coverage after any import, and the import summary when one ran.
+    """
+    coverage = check(conn, config, meta, fights, subjects, required)
+    if coverage.complete:
+        return coverage, None
+
+    summary = None
+    if allow_import and not coverage.needs_fetch:
+        from ..fetch.scopes import resolve_streams
+        from .importer import Importer
+
+        streams = resolve_streams(sorted({g.stream for g in coverage.gaps}))
+        affected_ids = {g.fight_id for g in coverage.gaps}
+        affected = [f for f in fights if f.id in affected_ids]
+        summary = Importer(conn, config, meta).run(affected, subjects, streams)
+        coverage = check(conn, config, meta, fights, subjects, required)
+
+    if not coverage.complete:
+        raise MissingData(coverage.message())
+    return coverage, summary
