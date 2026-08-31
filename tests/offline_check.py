@@ -293,6 +293,9 @@ def main() -> int:
         _check_havoc()
         _check_shard_model()
 
+        print("report page")
+        _check_report(tmp)
+
         print("\nall offline checks passed")
         return 0
     finally:
@@ -620,6 +623,81 @@ def _check_shard_model() -> None:
     bare = shards_at(casts, 0, 0, 20_000, Generation())
     check("without rates the entry equals the reading", bare.entry == 3.5)
     check("an empty model is inactive", not Generation().active)
+
+
+def _check_report(tmp: Path) -> None:
+    """Rendering a page, without a browser."""
+    import json
+    import re
+
+    from wclyser import report as rp
+    from wclyser.errors import WCLError
+
+    payload = {
+        "title": "Havoc windows · Alpha · 2026-08-30",
+        "report": "TEST123", "night": "2026-08-30", "zone": "Test Raid",
+        "player": "Alpha-Frostmourne-US", "source_id": 5,
+        "player_class": "Warlock", "spec": "Destruction",
+        "encounter": "Test Boss", "difficulty": "Mythic",
+        "window_s": 20, "lead_in_s": 5, "ability": "Havoc",
+        "good": ["Chaos Bolt"], "bad": ["Wither"],
+        "pulls": [{"pull": 1, "fight_id": 1, "outcome": "wipe", "duration_s": 100.0,
+                   "end_percent": 42.0, "fight_start_ms": 1000, "fight_end_ms": 101000}],
+        "windows": [{
+            "pull": 1, "idx": 1, "fight_id": 1, "start_s": 10.0, "len_s": 20.0,
+            "abs_start_ms": 11000, "abs_end_ms": 31000, "abs_lead_ms": 6000,
+            "entry": 4.2, "reading": 50, "delay_s": 2.0, "cap": 5.0,
+            "casts": [{"t": 1.0, "n": "Chaos Bolt", "c": "good", "r": 1, "lead": False},
+                      {"t": -2.0, "n": "Wither", "c": "bad", "r": 1, "lead": True}],
+        }],
+    }
+
+    check("havoc has a page template", rp.available("havoc"))
+    check("an unknown module has none", not rp.available("nothing"))
+
+    html = rp.render("havoc", payload, footer_note="wclyser · TEST123")
+    check("no placeholder survives rendering",
+          "{{TITLE}}" not in html and "{{FOOTER_NOTE}}" not in html
+          and "/*__DATA__*/" not in html)
+    check("the title is applied", "<title>" + payload["title"] + "</title>" in html)
+    check("the footer note is applied", "wclyser · TEST123" in html)
+
+    body = re.search(r'type="application/json">(.*?)</script>', html, re.S).group(1)
+    back = json.loads(body)
+    check("the payload round-trips", back == payload)
+
+    # Only Google Fonts may be reached; everything else has to be inline.
+    hosts = set(re.findall(r'https?://([^/"\s]+)', html))
+    allowed = {"fonts.googleapis.com", "fonts.gstatic.com", "www.warcraftlogs.com"}
+    check("the page reaches no unexpected host", hosts <= allowed, str(hosts - allowed))
+    check("no external script or stylesheet beyond fonts",
+          html.count("<script src") == 0)
+
+    # A spell name carrying a closing tag must not break out of the script.
+    nasty = json.loads(json.dumps(payload))
+    nasty["windows"][0]["casts"][0]["n"] = "Chaos </script><script>alert(1)</script>"
+    dirty = rp.render("havoc", nasty)
+    check("an embedded closing tag is escaped",
+          "</script><script>alert(1)" not in dirty)
+    reparsed = json.loads(
+        re.search(r'type="application/json">(.*?)</script>', dirty, re.S)
+        .group(1).replace("<\\/", "</")
+    )
+    check("and the escaped payload still parses",
+          reparsed["windows"][0]["casts"][0]["n"].startswith("Chaos "))
+
+    try:
+        rp.render("nothing", payload)
+        check("rendering an unknown module raises", False)
+    except WCLError:
+        check("rendering an unknown module raises", True)
+
+    name = rp.filename("TEST123", "Alpha-Frostmourne-US", "havoc")
+    check("the filename is safe and identifies the page",
+          name == "TEST123-Alpha-Frostmourne-US-havoc.html", name)
+
+    out = rp.write(tmp / "reports" / name, html)
+    check("the page is written to disk", out.is_file() and out.stat().st_size > 1000)
 
 
 if __name__ == "__main__":
