@@ -15,7 +15,8 @@ from .client import GraphQLClient
 from .config import load_config
 from .errors import WCLError
 from .fetch import Fetcher, resolve_streams
-from .fetch.meta import select_fights
+from .fetch.meta import load_offline_meta, select_fights
+from .db import Importer, database_stats, open_database, schema_version
 from .fetch.scopes import BY_KEY, Scope
 
 log = logging.getLogger("wcla")
@@ -61,6 +62,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip a pull that may still be in progress",
     )
     fetch.set_defaults(func=cmd_fetch)
+
+    imp = sub.add_parser(
+        "import", help="import cached blobs into SQLite; never touches the API"
+    )
+    imp.add_argument("code")
+    imp.add_argument("--player", action="append", help="subject, repeatable")
+    imp.add_argument("--stream", action="append", help="stream, repeatable")
+    imp.add_argument("--fight", action="append", type=int, help="fight id, repeatable")
+    imp.add_argument("--force", action="store_true", help="re-import unchanged blobs")
+    _add_focus_flags(imp)
+    imp.set_defaults(func=cmd_import)
+
+    stats = sub.add_parser("stats", help="row counts and the imported pulls")
+    stats.add_argument("code", nargs="?")
+    stats.set_defaults(func=cmd_stats)
 
     streams = sub.add_parser("streams", help="show the fetch plan")
     streams.set_defaults(func=cmd_streams)
@@ -215,6 +231,105 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         f"in {client.requests_made} requests"
     )
     print(f"budget:   {client.rate_limit(refresh=True)}")
+    return 0
+
+
+def cmd_import(args: argparse.Namespace) -> int:
+    config = load_config(args.config)
+    meta = load_offline_meta(config.raw_dir, args.code)
+    streams = resolve_streams(args.stream)
+    subjects = meta.resolve_subjects(config, args.player)
+
+    encounter, difficulty, spec = _focus(args, config)
+    fights = select_fights(meta.fights, encounter, difficulty, args.fight)
+    if spec:
+        # Resolved from each pull's cached player details, so import stays
+        # offline. A pull whose details were never fetched cannot be judged and
+        # is left out.
+        fights = _filter_cached_spec(config, meta, fights, subjects, spec)
+
+    conn = open_database(config.db_path)
+    print(f"{meta.code}  {meta.title or '(untitled)'}  night {meta.raid_night}")
+    print(f"database: {config.db_path}  (schema version {schema_version(conn)})")
+    print(f"subjects: {', '.join(a.player_key for a in subjects) or '(raid-wide only)'}")
+    print(f"focus:    {config.focus.describe() if not args.all else 'everything'}")
+    print(f"pulls:    {len(fights)} of {len(meta.fights)}")
+
+    importer = Importer(conn, config, meta)
+    summary = importer.run(fights, subjects, streams, force=args.force)
+
+    print()
+    for stream, rows in sorted(summary.per_stream.items(), key=lambda kv: -kv[1]):
+        print(f"  {stream:<20} {rows:>8} rows")
+    print()
+    print(
+        f"{summary.fights} pulls, {summary.rows} event rows, "
+        f"{summary.imported} blobs imported, {summary.skipped} unchanged"
+    )
+    if summary.missing:
+        print()
+        print(f"{len(summary.missing)} expected blobs are not in the cache:")
+        for fight_id, stream, subject in summary.missing[:20]:
+            print(f"  fight {fight_id:>3}  {stream:<20} {subject}")
+        if len(summary.missing) > 20:
+            print(f"  ... and {len(summary.missing) - 20} more")
+        print(f"Run 'wcla fetch {meta.code}' and import again.")
+    conn.close()
+    return 0
+
+
+def _filter_cached_spec(config, meta, fights, subjects, spec):
+    """Specialisation filter that reads only the cache."""
+    from .fetch.cache import BlobCache
+    from .fetch.meta import iter_player_details
+    from .fetch.scopes import RAID_SUBJECT
+
+    cache = BlobCache(config.raw_dir)
+    wanted = spec.strip().lower()
+    kept = []
+    for fight in fights:
+        blob = cache.read(
+            cache.path(meta.code, fight.id, "player_details", RAID_SUBJECT, kind="meta")
+        )
+        if blob is None:
+            log.warning("fight %d has no cached player details; skipped", fight.id)
+            continue
+        details = {e["id"]: e for e in iter_player_details(blob.payload.get("data"))}
+        for actor in meta.subjects_in_fight(fight, subjects):
+            entry = details.get(actor.id) or {}
+            specs = entry.get("specs") or []
+            best = max(specs, key=lambda x: x.get("count", 0)).get("spec") if specs else None
+            if (best or "").lower() == wanted:
+                kept.append(fight)
+                break
+    return kept
+
+
+def cmd_stats(args: argparse.Namespace) -> int:
+    config = load_config(args.config)
+    conn = open_database(config.db_path, read_only=True)
+    print(f"database: {config.db_path}  (schema version {schema_version(conn)})")
+    for table, count in database_stats(conn, args.code).items():
+        print(f"  {table:<14} {count:>9}")
+
+    rows = conn.execute(
+        """
+        SELECT raid_night, boss_name, difficulty_name, pull_number, outcome,
+               duration_s, player_key, spec
+        FROM v_subject_pull ORDER BY raid_night, pull_number
+        """
+    ).fetchall()
+    if rows:
+        print()
+        print("subject pulls:")
+        for r in rows:
+            print(
+                f"  {r['raid_night']}  {r['boss_name'][:24]:<25} "
+                f"{r['difficulty_name']:<8} pull {r['pull_number']:>2}  "
+                f"{r['outcome']:<4} {r['duration_s']:>6.0f}s  "
+                f"{r['player_key']:<28} {r['spec'] or '?'}"
+            )
+    conn.close()
     return 0
 
 
