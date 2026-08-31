@@ -13,6 +13,10 @@ havoc:
   ability: Havoc
   window_s: 20
 
+  # How long before the window opens counts as the lead-in. A spell from the
+  # bad list cast here was cleared out of the way, which is a good sign.
+  lead_in_s: 5
+
   # Best first. Rank 1 is the best use of a duplicated cast.
   good:
     - Soul Fire
