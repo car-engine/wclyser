@@ -132,6 +132,12 @@ it, and `fight_player` carrying the specialisation each player held for each
 pull. Import replaces exactly the rows one blob produced, so re-importing a
 report changes nothing.
 
+Which streams reach the database is decided in this order: the `--stream`
+flag, an `import.streams` list in a named config, then whatever the selected
+analysis modules declare they read, and only then everything. So
+`wcly import <code> --module havoc` stores casts alone, because that is all
+the module reads.
+
 **Fetch wide, import narrow.** A blob costs API points once and then sits on
 disk at a few hundred kilobytes, so fetching pulls everything. Rows in the
 event table cost space in a file meant to grow across a whole tier, so

@@ -54,6 +54,11 @@ Ask before writing anything in the analysis layer.
 behaviour is not what the field names suggest, and several definitions were
 wrong until they were checked against live data. See `docs/wcl-api.md`.
 
+**Import takes what is read.** Streams are decided by `--stream`, then a named
+config's `import.streams`, then what the selected analysis modules declare in
+their `requires`, then everything. A stream nothing reads should not reach the
+database.
+
 **Fetch wide, import narrow.** Fetching pulls every stream, because a blob
 costs points once and then sits on disk. `import.streams` decides what reaches
 the database, because rows cost space in a file meant to grow across a tier.

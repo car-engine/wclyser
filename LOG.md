@@ -30,6 +30,20 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, import follows the module
+
+Which streams reach the database is now decided by `--stream`, then a named
+config's `import.streams`, then what the selected analysis modules declare in
+their `requires`, then everything. `wcly import <code> --module havoc` stores
+casts alone. `import` and `sync` both take `--module` for this, and both print
+what decided the list.
+
+Also corrected: a relative `data_dir` was resolved against the config file's
+directory. Moving the saved run into `nights/` therefore moved the data store
+to `nights/data` and every report read as unfetched. It resolves against the
+working directory now, because config files sit together in a directory of
+saved runs while the data store is one shared place.
+
 ## 2026-09-01, configuration is explicit
 
 A config file is now read only when a command names it with `--config`. The
