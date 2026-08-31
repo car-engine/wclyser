@@ -136,6 +136,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--fight", action=CommaList, item_type=int,
         help="fight id; repeat or comma-separate",
     )
+    imp.add_argument(
+        "--module", action=CommaList,
+        help="import only what these modules read, when no stream list is set",
+    )
     imp.add_argument("--force", action="store_true", help="re-import unchanged blobs")
     _add_focus_flags(imp)
     imp.set_defaults(func=cmd_import)
@@ -217,6 +221,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--fight", action=CommaList, item_type=int,
         help="fight id; repeat or comma-separate",
     )
+    syn.add_argument(
+        "--module", action=CommaList,
+        help="import only what these modules read, when no stream list is set",
+    )
     syn.add_argument("--force", action="store_true", help="ignore cached blobs")
     syn.add_argument(
         "--finished-only", action="store_true",
@@ -261,6 +269,29 @@ def _load(args: argparse.Namespace):
     if getattr(args, "database", None):
         config.database = Path(args.database)
     return config
+
+
+def _import_streams(args: argparse.Namespace, config) -> tuple[list, str]:
+    """Which streams reach the database, and what decided it.
+
+    In order: the --stream flag, an import.streams list in a named config, then
+    what the selected analysis modules declare they read. Importing everything
+    is the last resort, because a stream nothing reads costs space in a file
+    meant to grow across a tier.
+    """
+    if getattr(args, "stream", None):
+        return resolve_streams(args.stream), "--stream"
+    if config.import_.streams:
+        return resolve_streams(config.import_.streams), "import.streams in the config"
+
+    keys = getattr(args, "module", None) or config.analysis.modules
+    if keys:
+        modules = resolve_modules(list(keys))
+        required = sorted({stream for m in modules for stream in m.requires})
+        named = ", ".join(m.key for m in modules)
+        return resolve_streams(required), f"what {named} reads"
+
+    return resolve_streams(None), "no stream list or module given, so everything"
 
 
 def _modules_for(args: argparse.Namespace, config) -> list:
@@ -423,7 +454,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
 def cmd_import(args: argparse.Namespace) -> int:
     config = _load(args)
     meta = load_offline_meta(config.raw_dir, args.code)
-    streams = resolve_streams(args.stream or config.import_.streams)
+    streams, why = _import_streams(args, config)
     subjects = meta.resolve_subjects(config, args.player)
 
     encounter, difficulty, spec = _focus(args, config)
@@ -438,7 +469,7 @@ def cmd_import(args: argparse.Namespace) -> int:
     print(f"{meta.code}  {meta.title or '(untitled)'}  night {meta.raid_night}")
     print(f"database: {config.db_path}  (schema version {schema_version(conn)})")
     print(f"subjects: {', '.join(a.player_key for a in subjects) or '(raid-wide only)'}")
-    print(f"streams:  {', '.join(s.key for s in streams)}")
+    print(f"streams:  {', '.join(s.key for s in streams)}  ({why})")
     print(f"focus:    {_describe_focus(encounter, difficulty, spec)}")
     print(f"pulls:    {len(fights)} of {len(meta.fights)}")
 
@@ -587,9 +618,9 @@ def cmd_sync(args: argparse.Namespace) -> int:
     for fight_id, reason in summary.skipped_fights:
         print(f"  fight {fight_id} skipped: {reason}")
 
-    import_streams = resolve_streams(config.import_.streams)
+    import_streams, why = _import_streams(args, config)
     print()
-    print(f"importing {', '.join(s.key for s in import_streams)}")
+    print(f"importing {', '.join(s.key for s in import_streams)}  ({why})")
     conn = open_database(config.db_path)
     imported = Importer(conn, config, meta).run(fights, subjects, import_streams)
     print(f"  {imported.rows} event rows, {imported.imported} blobs imported, "
