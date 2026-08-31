@@ -297,6 +297,7 @@ def main() -> int:
         _check_report(tmp)
 
         print("command line flags")
+        _check_config_discovery(tmp)
         _check_cli_flags()
 
         print("\nall offline checks passed")
@@ -728,6 +729,51 @@ def _check_report(tmp: Path) -> None:
     check("the page is written to disk", out.is_file() and out.stat().st_size > 1000)
 
 
+def _check_config_discovery(tmp: Path) -> None:
+    """A config file applies only when a command names it."""
+    import os
+
+    from wclyser.config import find_config_file, load_config
+    from wclyser.errors import ConfigError
+
+    check("nothing is discovered without --config", find_config_file(None) is None)
+
+    body = (
+        "data_dir: data\n"
+        "subjects:\n  default: [\"Alpha-Frostmourne-US\"]\n"
+        "focus:\n  difficulty: Mythic\n"
+        "analysis:\n  modules: [havoc]\n"
+    )
+    named = tmp / "saved.yaml"
+    named.write_text(body, encoding="utf-8")
+
+    # A file sitting in the working directory must not be picked up.
+    here = Path.cwd()
+    try:
+        os.chdir(tmp)
+        (tmp / "config.yaml").write_text(body, encoding="utf-8")
+        os.environ.setdefault("WCL_CLIENT_ID", "x")
+        os.environ.setdefault("WCL_CLIENT_SECRET", "y")
+
+        bare = load_config()
+        check("a config.yaml in the working directory is ignored",
+              bare.subjects.default == [] and bare.focus.difficulty is None)
+        check("and it names no module", bare.analysis.modules is None)
+
+        used = load_config(named)
+        check("the named config applies", used.subjects.default == ["Alpha-Frostmourne-US"])
+        check("its focus applies", used.focus.difficulty == "Mythic")
+        check("its modules apply", used.analysis.modules == ["havoc"])
+    finally:
+        os.chdir(here)
+
+    try:
+        load_config(tmp / "absent.yaml")
+        check("a missing named config is an error", False)
+    except ConfigError:
+        check("a missing named config is an error", True)
+
+
 def _check_cli_flags() -> None:
     """Repeatable flags accept comma-separated values as well."""
     import contextlib
@@ -799,14 +845,30 @@ def _check_cli_flags() -> None:
         check("a non-numeric fight id is refused",
               "--fight" in message and "abc" in message, message.strip()[-60:])
 
-    # analyse names the module to run rather than defaulting to all of them.
-    err = io.StringIO()
+    # A module comes from the flag or from a named config, never a default.
+    from types import SimpleNamespace
+
+    from wclyser.cli import _modules_for
+    from wclyser.config import AnalysisSettings
+    from wclyser.errors import WCLError
+
+    bare = SimpleNamespace(analysis=AnalysisSettings())
+    named = SimpleNamespace(analysis=AnalysisSettings(modules=["havoc"]))
+
+    got = _modules_for(SimpleNamespace(module=["havoc"]), bare)
+    check("the flag names the module", [m.key for m in got] == ["havoc"])
+
+    got = _modules_for(SimpleNamespace(module=None), named)
+    check("a config can name it instead", [m.key for m in got] == ["havoc"])
+
+    got = _modules_for(SimpleNamespace(module=["havoc"]), named)
+    check("the flag wins over the config", [m.key for m in got] == ["havoc"])
+
     try:
-        with contextlib.redirect_stderr(err):
-            parsed(["analyse", "C"])
-        check("analyse demands --module", False)
-    except SystemExit:
-        check("analyse demands --module", "--module" in err.getvalue())
+        _modules_for(SimpleNamespace(module=None), bare)
+        check("neither one is an error", False)
+    except WCLError as exc:
+        check("neither one is an error", "--module" in str(exc), str(exc)[:60])
 
     # report is a placeholder for the cross-night document and takes no module.
     a = parsed(["report", "C"])
