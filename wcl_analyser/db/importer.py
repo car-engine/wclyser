@@ -23,6 +23,7 @@ from ..fetch.cache import BlobCache
 from ..fetch.meta import Actor, Fight, ReportMeta
 from ..fetch.scopes import RAID_SUBJECT, Scope, Stream, subject_slug
 from .mappers import EVENT_INSERT, ActorIndex, combatant_rows, map_events
+from .schema import schema_version
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class Importer:
         self.cache = BlobCache(config.raw_dir)
         self.actors = ActorIndex(meta.actors)
         self.now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        self.schema_version = schema_version(conn)
 
     # -- dimensions ------------------------------------------------------
 
@@ -198,29 +200,38 @@ class Importer:
 
     # -- blobs -----------------------------------------------------------
 
-    def _recorded_hash(self, fight_id: int, stream: str, subject: str) -> str | None:
+    def is_current(self, fight_id: int, stream: str, subject: str, blob_hash: str) -> bool:
+        """Whether this blob is already in, under the schema now in force."""
         row = self.conn.execute(
             """
-            SELECT blob_sha256 FROM import_log
+            SELECT blob_sha256, schema_version FROM import_log
             WHERE report_code = ? AND fight_id = ? AND stream = ? AND subject = ?
             """,
             (self.meta.code, fight_id, stream, subject),
         ).fetchone()
-        return row["blob_sha256"] if row else None
+        if row is None:
+            return False
+        return (
+            row["blob_sha256"] == blob_hash
+            and row["schema_version"] == self.schema_version
+        )
 
     def _record(self, fight_id: int, stream: str, subject: str, blob_hash: str,
                 rows: int) -> None:
         self.conn.execute(
             """
             INSERT INTO import_log (report_code, fight_id, stream, subject,
-                                    blob_sha256, row_count, imported_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                                    blob_sha256, row_count, imported_at,
+                                    schema_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(report_code, fight_id, stream, subject) DO UPDATE SET
                 blob_sha256 = excluded.blob_sha256,
                 row_count = excluded.row_count,
-                imported_at = excluded.imported_at
+                imported_at = excluded.imported_at,
+                schema_version = excluded.schema_version
             """,
-            (self.meta.code, fight_id, stream, subject, blob_hash, rows, self.now),
+            (self.meta.code, fight_id, stream, subject, blob_hash, rows, self.now,
+             self.schema_version),
         )
 
     def import_event_blob(
@@ -237,7 +248,7 @@ class Importer:
             summary.missing.append((fight.id, stream.key, subject))
             return
 
-        if not force and self._recorded_hash(fight.id, stream.key, subject) == blob.content_hash:
+        if not force and self.is_current(fight.id, stream.key, subject, blob.content_hash):
             summary.skipped += 1
             return
 
@@ -290,7 +301,7 @@ class Importer:
         combined_hash = "+".join(
             b.content_hash if b else "-" for b in (combatant, details_blob)
         )
-        if not force and self._recorded_hash(fight.id, COMBATANT_STREAM, RAID_SUBJECT) == combined_hash:
+        if not force and self.is_current(fight.id, COMBATANT_STREAM, RAID_SUBJECT, combined_hash):
             summary.skipped += 1
             return
 
@@ -371,6 +382,58 @@ class Importer:
             self.import_fight_players(fight, subjects, summary, force)
 
         return summary
+
+
+@dataclass
+class PruneSummary:
+    removed_rows: int = 0
+    removed_blobs: int = 0
+    per_stream: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def streams(self) -> list[str]:
+        return sorted(self.per_stream)
+
+
+def prune_streams(
+    conn: sqlite3.Connection,
+    report_code: str | None,
+    keep: list[str],
+    dry_run: bool = False,
+) -> PruneSummary:
+    """Remove imported streams outside ``keep``.
+
+    Narrowing the import list leaves behind whatever a previous, wider import
+    put in. Rebuilding from cache would also work and costs no API points, but
+    this is the surgical form for a database holding many nights.
+    """
+    summary = PruneSummary()
+    where = "stream NOT IN ({})".format(",".join("?" * len(keep)))
+    params: list = list(keep)
+    if report_code:
+        where += " AND report_code = ?"
+        params.append(report_code)
+
+    for row in conn.execute(
+        f"SELECT stream, COUNT(*) AS n FROM event WHERE {where} GROUP BY stream",
+        params,
+    ):
+        summary.per_stream[row["stream"]] = row["n"]
+        summary.removed_rows += row["n"]
+
+    row = conn.execute(
+        f"SELECT COUNT(*) AS n FROM import_log WHERE {where}", params
+    ).fetchone()
+    summary.removed_blobs = row["n"]
+
+    if dry_run or not summary.removed_rows and not summary.removed_blobs:
+        return summary
+
+    with conn:
+        conn.execute(f"DELETE FROM event WHERE {where}", params)
+        conn.execute(f"DELETE FROM import_log WHERE {where}", params)
+    conn.execute("VACUUM")
+    return summary
 
 
 def database_stats(conn: sqlite3.Connection, report_code: str | None = None) -> dict:

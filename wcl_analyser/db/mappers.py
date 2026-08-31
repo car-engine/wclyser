@@ -10,8 +10,10 @@ explicitly:
   one column would silently mix two different quantities.
 - The resource an event changed and the actor's own resource pool are
   different quantities. ``resourceChangeType`` names the resource that moved,
-  while ``classResources`` reports the pool the actor was carrying, which for a
-  warlock spending a soul shard is mana. They get separate columns.
+  while ``classResources`` reports the pool the actor was carrying and what the
+  cast spent from it. For a warlock spending a soul shard the change is
+  reported against shards and the pool against mana, so they get separate
+  columns.
 - Deaths name the killer in ``killerID`` and the killing blow in
   ``killingAbilityGameID``, with ``sourceID`` set to the environment.
 - CombatantInfo is not a timeline event and does not go into ``event`` at all.
@@ -55,6 +57,7 @@ EVENT_COLUMNS = (
     "pool_type",
     "pool_amount",
     "pool_max",
+    "pool_cost",
     "hp_current",
     "hp_max",
     "pos_x",
@@ -141,7 +144,7 @@ def map_events(
         # carrying. These are routinely different resources.
         resource_type = _int(ev.get("resourceChangeType"))
         resource_max = _int(ev.get("maxResourceAmount"))
-        pool_type = pool_amount = pool_max = None
+        pool_type = pool_amount = pool_max = pool_cost = None
         class_resources = ev.get("classResources") or []
         if class_resources:
             pool = class_resources[0]
@@ -154,6 +157,7 @@ def map_events(
             pool_type = _int(pool.get("type"))
             pool_amount = _int(pool.get("amount"))
             pool_max = _int(pool.get("max"))
+            pool_cost = _int(pool.get("cost"))
 
         rows.append(
             (
@@ -187,6 +191,7 @@ def map_events(
                 pool_type,
                 pool_amount,
                 pool_max,
+                pool_cost,
                 _int(ev.get("hitPoints")),
                 _int(ev.get("maxHitPoints")),
                 _int(ev.get("x")),
