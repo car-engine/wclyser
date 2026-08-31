@@ -123,6 +123,8 @@ class Config:
     source_path: Path | None = None
     # Overrides the database location, for a side-by-side rebuild or a test.
     database: Path | None = None
+    # Where generated pages go. Defaults to ./reports.
+    reports: Path | None = None
 
     @property
     def raw_dir(self) -> Path:
@@ -131,6 +133,11 @@ class Config:
     @property
     def token_path(self) -> Path:
         return self.data_dir / "token.json"
+
+    @property
+    def reports_dir(self) -> Path:
+        """Where generated pages go. Kept out of data_dir, which is a cache."""
+        return self.reports or Path("reports").resolve()
 
     @property
     def db_path(self) -> Path:
@@ -221,6 +228,8 @@ def load_config(explicit: str | Path | None = None) -> Config:
     # the data store is one shared place, so resolving against the file would
     # give each config its own empty store.
     data_dir = Path(raw.get("data_dir", "data")).expanduser().resolve()
+    reports = raw.get("reports_dir")
+    reports = Path(reports).expanduser().resolve() if reports else None
 
     subj = raw.get("subjects") or {}
     auto = subj.get("auto_select") or {}
@@ -248,4 +257,5 @@ def load_config(explicit: str | Path | None = None) -> Config:
         import_=import_,
         http=http,
         source_path=path,
+        reports=reports,
     )

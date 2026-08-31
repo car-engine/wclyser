@@ -56,9 +56,25 @@ def render(module_key: str, payload: dict, footer_note: str = "") -> str:
     return html
 
 
-def filename(report_code: str, player_key: str, module_key: str) -> str:
-    slug = _UNSAFE.sub("-", player_key).strip("-")
-    return f"{report_code}-{slug}-{module_key}.html"
+def slug(value: str) -> str:
+    return _UNSAFE.sub("-", value).strip("-") or "unnamed"
+
+
+def filename(player_key: str, module_key: str) -> str:
+    return f"{slug(player_key)}_{slug(module_key)}.html"
+
+
+def destination(
+    root: Path, raid_night: str, report_code: str, player_key: str, module_key: str
+) -> Path:
+    """Where one page lands.
+
+    ``reports/<night>_<report>/<player>_<module>.html``. The night leads so a
+    listing sorts chronologically, and the report code disambiguates two
+    reports from the same evening.
+    """
+    folder = f"{slug(raid_night)}_{slug(report_code)}"
+    return Path(root) / folder / filename(player_key, module_key)
 
 
 def write(path: Path, html: str) -> Path:

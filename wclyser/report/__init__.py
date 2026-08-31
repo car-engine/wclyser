@@ -1,3 +1,19 @@
-from .html import TEMPLATES, available, filename, render, write
+from .html import (
+    TEMPLATES,
+    available,
+    destination,
+    filename,
+    render,
+    slug,
+    write,
+)
 
-__all__ = ["TEMPLATES", "available", "filename", "render", "write"]
+__all__ = [
+    "TEMPLATES",
+    "available",
+    "destination",
+    "filename",
+    "render",
+    "slug",
+    "write",
+]
