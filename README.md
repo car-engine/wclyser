@@ -30,7 +30,8 @@ wcly analyse <code> --module havoc --player Nevaritius --difficulty Mythic
 ```
 
 Both forms are complete. Flags override anything the config sets. Saved runs
-live in `configs/`, one file per question.
+live in `configs/`, one file per question. `--config`, `--database` and `-v`
+work on either side of the subcommand.
 
 Pages go to `reports/<raid_night>_<report_code>/<player>_<module>.html`, so a
 listing sorts by night and each night holds one file per player. `--html PATH`

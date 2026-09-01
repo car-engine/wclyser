@@ -30,6 +30,18 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-01, global flags on either side
+
+`--config`, `--database` and `-v` were declared on the top-level parser only,
+so argparse rejected them after the subcommand. Every example written for them
+used the prefix form, but the natural thing to type is
+`wcly analyse <code> --config ...`, which failed with an unhelpful
+`unrecognized arguments`.
+
+They are now declared on every subparser as well, through a shared parent with
+`default=argparse.SUPPRESS` so that omitting one after the subcommand does not
+overwrite a value given before it.
+
 ## 2026-09-01, saved runs and report layout
 
 Saved runs moved to `configs/`. The Entombed Sentinels file dropped its
