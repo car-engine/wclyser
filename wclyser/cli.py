@@ -66,8 +66,36 @@ class CommaList(argparse.Action):
         setattr(namespace, self.dest, collected)
 
 
+def _global_flags() -> argparse.ArgumentParser:
+    """Options that work before or after the subcommand.
+
+    argparse binds an option to the parser that declares it, so a flag on the
+    top-level parser alone is rejected after the subcommand. Declaring the same
+    ones on every subparser accepts both positions. The defaults are SUPPRESS so
+    that leaving one off after the subcommand does not overwrite a value given
+    before it.
+    """
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--config",
+        default=argparse.SUPPRESS,
+        help="YAML file holding a saved run: subjects, focus, modules, import "
+             "streams. Read only when named here",
+    )
+    common.add_argument(
+        "--database",
+        default=argparse.SUPPRESS,
+        help="path to the SQLite file; overrides the one in data_dir",
+    )
+    common.add_argument(
+        "-v", "--verbose", action="count", default=argparse.SUPPRESS
+    )
+    return common
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="wcly", description=__doc__)
+    common = _global_flags()
     parser.add_argument(
         "--config",
         help="YAML file holding a saved run: subjects, focus, modules, import "
@@ -79,15 +107,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="count", default=0)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    budget = sub.add_parser("budget", help="show the hourly API point budget")
+    budget = sub.add_parser("budget", help="show the hourly API point budget", parents=[common])
     budget.set_defaults(func=cmd_budget)
 
-    fights = sub.add_parser("fights", help="list the fights in a report")
+    fights = sub.add_parser("fights", help="list the fights in a report", parents=[common])
     fights.add_argument("code")
     _add_focus_flags(fights)
     fights.set_defaults(func=cmd_fights)
 
-    players = sub.add_parser("players", help="list the players in a report")
+    players = sub.add_parser("players", help="list the players in a report", parents=[common])
     players.add_argument("code")
     players.add_argument(
         "--player", action=CommaList,
@@ -95,7 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     players.set_defaults(func=cmd_players)
 
-    fetch = sub.add_parser("fetch", help="fetch and cache raw events for a report")
+    fetch = sub.add_parser("fetch", help="fetch and cache raw events for a report", parents=[common])
     fetch.add_argument("code")
     fetch.add_argument(
         "--player",
@@ -121,7 +149,8 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.set_defaults(func=cmd_fetch)
 
     imp = sub.add_parser(
-        "import", help="import cached blobs into SQLite; never touches the API"
+        "import", help="import cached blobs into SQLite; never touches the API",
+        parents=[common],
     )
     imp.add_argument("code")
     imp.add_argument(
@@ -145,7 +174,8 @@ def build_parser() -> argparse.ArgumentParser:
     imp.set_defaults(func=cmd_import)
 
     cov = sub.add_parser(
-        "coverage", help="what an analysis needs against what has been imported"
+        "coverage", help="what an analysis needs against what has been imported",
+        parents=[common],
     )
     cov.add_argument("code")
     cov.add_argument(
@@ -159,7 +189,8 @@ def build_parser() -> argparse.ArgumentParser:
     cov.set_defaults(func=cmd_coverage)
 
     prune = sub.add_parser(
-        "prune", help="drop imported streams outside the configured import list"
+        "prune", help="drop imported streams outside the configured import list",
+        parents=[common],
     )
     prune.add_argument("code", nargs="?")
     prune.add_argument(
@@ -173,11 +204,11 @@ def build_parser() -> argparse.ArgumentParser:
     prune.add_argument("--dry-run", action="store_true", help="report without deleting")
     prune.set_defaults(func=cmd_prune)
 
-    stats = sub.add_parser("stats", help="row counts and the imported pulls")
+    stats = sub.add_parser("stats", help="row counts and the imported pulls", parents=[common])
     stats.add_argument("code", nargs="?")
     stats.set_defaults(func=cmd_stats)
 
-    ana = sub.add_parser("analyse", help="run analysis modules over the database")
+    ana = sub.add_parser("analyse", help="run analysis modules over the database", parents=[common])
     ana.add_argument("code")
     ana.add_argument(
         "--player", action=CommaList, help="subject; repeat or comma-separate"
@@ -215,7 +246,8 @@ def build_parser() -> argparse.ArgumentParser:
     ana.set_defaults(func=cmd_analyse)
 
     syn = sub.add_parser(
-        "sync", help="fetch a report and import it, in one step"
+        "sync", help="fetch a report and import it, in one step",
+        parents=[common],
     )
     syn.add_argument("code")
     syn.add_argument(
@@ -240,11 +272,12 @@ def build_parser() -> argparse.ArgumentParser:
     rep = sub.add_parser(
         "report",
         help="reserved for the cross-night trend document; not built yet",
+        parents=[common],
     )
     rep.add_argument("code", nargs="?")
     rep.set_defaults(func=cmd_report)
 
-    streams = sub.add_parser("streams", help="show the fetch plan")
+    streams = sub.add_parser("streams", help="show the fetch plan", parents=[common])
     streams.set_defaults(func=cmd_streams)
 
     return parser

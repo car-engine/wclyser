@@ -809,6 +809,33 @@ def _check_cli_flags() -> None:
         return p.parse_args(argv)
 
     # import carries --player, --fight and --stream and needs no module.
+    # --config, --database and -v work on either side of the subcommand.
+    a = parsed(["--config", "x.yaml", "analyse", "C", "--module", "havoc"])
+    check("a global flag works before the subcommand", a.config == "x.yaml")
+
+    a = parsed(["analyse", "C", "--module", "havoc", "--config", "x.yaml"])
+    check("and after it", a.config == "x.yaml", repr(a.config))
+
+    a = parsed(["--config", "x.yaml", "analyse", "C", "--module", "havoc",
+                "--database", "d.sqlite"])
+    check("one on each side both stick",
+          a.config == "x.yaml" and a.database == "d.sqlite",
+          f"{a.config} {a.database}")
+
+    a = parsed(["--database", "d.sqlite", "analyse", "C", "--module", "havoc"])
+    check("leaving one off after the subcommand does not clear it",
+          a.database == "d.sqlite", repr(a.database))
+
+    a = parsed(["analyse", "C", "--module", "havoc"])
+    check("and its default survives", a.config is None and a.database is None)
+
+    a = parsed(["streams", "--config", "x.yaml"])
+    check("a subcommand with no flags of its own takes them too",
+          a.config == "x.yaml")
+
+    a = parsed(["fights", "C", "-v"])
+    check("counting verbosity still works", a.verbose == 1, str(a.verbose))
+
     a = parsed(["import", "C", "--player", "A,B"])
     check("a comma-separated flag splits", a.player == ["A", "B"], str(a.player))
 
