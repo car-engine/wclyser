@@ -104,9 +104,10 @@ target and an ability.
 ## Narrowing what is imported
 
 Fetching stays wide because a blob costs API points once and then sits on disk
-at a few hundred kilobytes. Importing is narrowed by `import.streams` in
-`config.yaml`, because every row costs space in a file meant to grow across a
-whole tier.
+at a few hundred kilobytes. Importing is narrowed because every row costs space
+in a file meant to grow across a whole tier. What lands is decided by the
+`--stream` flag, then an `import.streams` list in a named config, then whatever
+the selected analysis modules declare they read, and only then everything.
 
 The same eleven pulls import to 47.5 MB with all thirteen streams and 1.55 MB
 with `casts` and `resources` alone, a factor of thirty. `wcly prune` drops
@@ -114,10 +115,11 @@ streams the import list no longer wants, and `combatant_info` is never a
 pruning candidate because it feeds `fight_player` rather than `event`.
 
 An analysis that needs a stream which was not imported must not answer over
-missing rows. `wclyser.db.coverage.require` compares what a module
-declares against `import_log` and raises `MissingData` carrying the command to
-run, distinguishing a stream that is cached and merely unimported, where the
-fix is free, from one that was never fetched, where the fix costs points.
+missing rows. `wclyser.db.coverage` compares what a module declares against
+`import_log`. `ensure` imports a blob that is cached and merely unimported,
+because that costs nothing, and raises `MissingData` for one that was never
+fetched, carrying the command to run. `require` raises on either. The message
+separates the two cases, since one fix is free and the other spends points.
 
 `import_log.schema_version` records the schema each blob was imported under. A
 migration that adds a column leaves existing rows null in it, so an unchanged

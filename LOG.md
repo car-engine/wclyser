@@ -30,6 +30,25 @@ What has been built, and what is still open. Newest entries first.
 - **Analysis modules await design input.** The intent is specific patterns the
   user wants examined, not generic throughput statistics.
 
+## 2026-09-02
+
+README rewritten for the current state. It had said the analysis layer was not
+written, credited page output to `wcly report` rather than `analyse --html`, and
+pointed `--html` at `data/reports`. Setup now covers installing and credentials
+alone, a How to use section carries the two-command workflow, Commands lists
+every subcommand split by whether it reaches the API, and Flags holds the
+conventions that cut across them.
+
+Added `docs/adding-a-module.md`, the walkthrough for the usual task: the data a
+new question needs, the `Result` contract, the profile that holds its
+thresholds, the page template's three placeholders, and what the offline checks
+should gain. `CLAUDE.md` points at it rather than carrying it, because
+`CLAUDE.md` is loaded every session and stays short.
+
+Corrected in `CLAUDE.md`: two references to `db.coverage.require`, which the
+runner replaced with `ensure`; the ignore entry for the deleted prototype; and
+the `focus` block described as living in `config.yaml`.
+
 ## 2026-09-01, global flags on either side
 
 `--config`, `--database` and `-v` were declared on the top-level parser only,
@@ -415,4 +434,8 @@ Decided:
 ## Next
 
 Judge the Havoc output and adjust `wclyser/profiles/warlock_destruction.yaml`,
-then decide the second module.
+then design the second module. `docs/adding-a-module.md` carries the mechanics
+so the design discussion can stay on the pattern being examined.
+
+Still outstanding: rotate the API credentials, which were exposed in the
+deleted prototype and used for every verification run in this session.

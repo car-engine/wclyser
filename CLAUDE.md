@@ -3,6 +3,10 @@
 Personal Warcraft Logs analysis toolkit. Read `README.md` for the architecture
 and `LOG.md` for what has been done and what is outstanding.
 
+For the usual task, adding an analysis module, follow
+`docs/adding-a-module.md`. It covers getting the data in, the `Result`
+contract, the page template and what the offline checks should gain.
+
 ## Commands
 
 ```bash
@@ -41,8 +45,7 @@ ran. Flags override anything a named config sets.
 
 **Credentials.** Read from the environment, then a gitignored `.env`. Never
 write a credential into a source file, a config file, a test or a commit
-message. `.env` and `wcl_casts_export.py` are both gitignored; keep them that
-way.
+message. `.env` is gitignored; keep it that way.
 
 **Spell priorities are data.** They live in `wclyser/profiles/<class>_<spec>.yaml`
 and are chosen per pull from `fight_player.spec`. Changing what counts as a
@@ -67,7 +70,7 @@ database.
 costs points once and then sits on disk. `import.streams` decides what reaches
 the database, because rows cost space in a file meant to grow across a tier.
 Never widen `import.streams` to make an analysis pass; the analysis declares
-what it reads and `db.coverage.require` reports the gap.
+what it reads and `db.coverage.ensure` closes or reports the gap.
 
 **A report page is self-contained.** It carries its own CSS, script and data,
 because it is sent to someone who has none of this installed. Google Fonts is
@@ -93,7 +96,8 @@ layer being genuinely cache-first.
 - Each stream is fetched at exactly one scope, so two streams can never
   produce a row for the same event.
 - An analysis never answers over missing rows. It declares the streams it
-  reads and calls `db.coverage.require`, which raises with the command to run.
+  reads, and `db.coverage.ensure` imports a cached blob or raises with the
+  command to run.
 - `import_log` records the blob hash and the schema version. Both must match
   for import to skip the work, because a migration that adds a column leaves
   existing rows null in it.
@@ -106,8 +110,8 @@ layer being genuinely cache-first.
 
 Roughly 14 API points and 300 KB per pull per subject, against a budget of
 3600 points an hour. A full night of 23 mythic pulls for one subject took 322
-points, 2m 6s and 7.0 MB. Fetching is cheap enough not to optimise, and the
-`focus` block in `config.yaml` narrows it further.
+points, 2m 6s and 7.0 MB. Fetching is cheap enough not to optimise, and a
+named config's `focus` block narrows it further.
 
 ## Style
 

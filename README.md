@@ -160,6 +160,8 @@ store.
 - [LOG.md](LOG.md) — what has been built, and what is outstanding.
 - [docs/wcl-api.md](docs/wcl-api.md) — measured API behaviour.
 - [docs/schema.md](docs/schema.md) — the database schema and its reasoning.
+- [docs/adding-a-module.md](docs/adding-a-module.md) — the walkthrough for a
+  new analysis module, from getting the data in to rendering its page.
 
 ## Architecture
 
